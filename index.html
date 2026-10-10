@@ -1,0 +1,435 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+</head>
+<body>
+<title>5천만분의 1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@400;800&family=IBM+Plex+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: left = the shrinking headcount (the thesis), right = a mock resident-register sheet filled row by row, stamped at the end. */
+:root{
+  --paper:#E9EFEC; --sheet:#F7FAF8; --ink:#16212A; --muted:#56676C; --rule:#C6D2CE;
+  --accent:#2C6A58; --seal:#C2392C; --guil:rgba(44,106,88,.075);
+  --f-display:"Nanum Myeongjo","Batang",serif;
+  --f-body:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --paper:#0E1417; --sheet:#151D21; --ink:#E2E9E6; --muted:#8C9D98; --rule:#2A373B;
+  --accent:#7DC1AA; --seal:#E5604F; --guil:rgba(125,193,170,.06); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --paper:#0E1417; --sheet:#151D21; --ink:#E2E9E6; --muted:#8C9D98; --rule:#2A373B;
+  --accent:#7DC1AA; --seal:#E5604F; --guil:rgba(125,193,170,.06); color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--paper);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.6;word-break:keep-all;overflow-wrap:break-word}
+.wrap{max-width:1120px;margin:0 auto;padding-inline:20px;padding-block:40px 64px;display:grid;gap:56px}
+.eyebrow{font-size:12px;letter-spacing:.14em;color:var(--accent);font-weight:700;margin:0}
+h1,h2{font-family:var(--f-display);font-weight:800;text-wrap:balance;margin:0}
+h1{font-size:clamp(48px,8vw,88px);line-height:1;letter-spacing:-.02em}
+h2{font-size:26px}
+.hero{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);gap:48px;align-items:start}
+.hero-l{display:grid;gap:22px;position:sticky;top:calc(env(safe-area-inset-top,0px) + 24px)}
+.lede{margin:0;color:var(--muted);max-width:34em}
+.counter{display:grid;gap:4px;border-top:2px solid var(--ink);padding-top:14px}
+.c-label{font-size:13px;color:var(--muted)}
+.c-num{font-family:var(--f-mono);font-size:clamp(34px,5.4vw,56px);line-height:1.05;font-variant-numeric:tabular-nums;letter-spacing:-.02em;overflow-wrap:anywhere}
+.c-num small{font-family:var(--f-body);font-size:.4em;margin-left:6px;color:var(--muted)}
+.meter{height:6px;background:var(--rule);position:relative;overflow:hidden}
+.meter i{position:absolute;inset:0 auto 0 0;background:var(--seal);transition:width .45s ease}
+.scale{display:flex;justify-content:space-between;font-family:var(--f-mono);font-size:11px;color:var(--muted)}
+.actions{display:flex;flex-wrap:wrap;gap:10px}
+button{font:inherit;font-weight:700;cursor:pointer;border:2px solid var(--ink);background:var(--ink);color:var(--paper);padding:12px 22px}
+button.ghost{background:transparent;color:var(--ink)}
+button:hover{background:var(--accent);border-color:var(--accent);color:var(--sheet)}
+button:focus-visible{outline:3px solid var(--seal);outline-offset:3px}
+button:disabled{opacity:.5;cursor:wait}
+.toast{font-size:13px;color:var(--accent);min-height:1.2em;margin:0}
+
+.sheet{position:relative;background:var(--sheet);border:1px solid var(--rule);padding:28px 28px 32px;
+  background-image:repeating-radial-gradient(circle at 100% 0,var(--guil) 0 1px,transparent 1px 9px),repeating-radial-gradient(circle at 0 100%,var(--guil) 0 1px,transparent 1px 11px);
+  box-shadow:0 1px 0 var(--rule),0 18px 40px -28px rgba(0,0,0,.35);min-width:0}
+.sheet-head{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;border-bottom:3px double var(--ink);padding-bottom:10px;font-size:12px;color:var(--muted)}
+.sheet-head b{font-family:var(--f-display);font-size:20px;color:var(--ink);letter-spacing:.3em}
+.who{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;padding-block:18px 10px}
+.who .name{font-family:var(--f-display);font-weight:800;font-size:40px;line-height:1}
+.who .rrn{font-family:var(--f-mono);font-size:15px;color:var(--muted);letter-spacing:.04em}
+dl{margin:0;display:grid}
+.row{display:grid;grid-template-columns:6.5em minmax(0,1fr) auto;gap:4px 14px;align-items:baseline;padding-block:9px;border-bottom:1px solid var(--rule)}
+.row dt{font-size:12px;color:var(--muted);letter-spacing:.06em}
+.row dd{margin:0;font-weight:500;min-width:0}
+.row .note{grid-column:2/4;font-size:12px;color:var(--muted);margin-top:-2px}
+.row .p{font-family:var(--f-mono);font-size:12px;color:var(--accent);font-variant-numeric:tabular-nums;white-space:nowrap}
+.row.wait dd,.row.wait .p,.row.wait .note{color:var(--rule)}
+.row.flash{animation:flash .7s ease}
+@keyframes flash{from{background:var(--guil)}to{background:transparent}}
+.verdict{margin-top:22px;padding-right:130px;min-height:96px}
+.verdict p{margin:0}
+.verdict .big{font-family:var(--f-display);font-weight:800;font-size:22px;line-height:1.35;text-wrap:balance}
+.verdict .small{font-size:13px;color:var(--muted);margin-top:6px}
+.seal{position:absolute;right:26px;bottom:26px;width:104px;height:104px;border:4px solid var(--seal);color:var(--seal);
+  display:grid;grid-template-columns:1fr 1fr;grid-template-rows:repeat(3,1fr);padding:6px;transform:rotate(-7deg);
+  font-family:var(--f-display);font-weight:800;font-size:22px;line-height:1;place-items:center;opacity:.9;border-radius:6px;mix-blend-mode:multiply}
+:root[data-theme="dark"] .seal{mix-blend-mode:normal}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .seal{mix-blend-mode:normal}}
+.seal.off{opacity:0;transform:rotate(-7deg) scale(1.7)}
+.seal.stamp{animation:stamp .38s cubic-bezier(.2,1.4,.4,1) both}
+@keyframes stamp{from{opacity:0;transform:rotate(-7deg) scale(1.7)}to{opacity:.9;transform:rotate(-7deg) scale(1)}}
+
+.life{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);gap:48px;border-top:2px solid var(--ink);padding-top:28px}
+.life-l{display:grid;gap:12px;align-content:start}
+.life-l p{margin:0;color:var(--muted);max-width:32em}
+.years{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:4px;max-width:300px}
+.years span{aspect-ratio:1;border:1px solid var(--rule);max-width:100%}
+.years span.lived{background:var(--ink);border-color:var(--ink)}
+.years span.now{background:var(--seal);border-color:var(--seal)}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.legend i{display:inline-block;width:10px;height:10px;margin-right:6px;vertical-align:-1px;border:1px solid var(--rule)}
+.legend .l1{background:var(--ink);border-color:var(--ink)}.legend .l2{background:var(--seal);border-color:var(--seal)}
+.facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 28px;margin:0;align-content:start}
+.facts div{border-bottom:1px solid var(--rule);padding-block:12px}
+.facts dt{font-size:12px;color:var(--muted)}
+.facts dd{margin:0;font-family:var(--f-mono);font-size:24px;font-variant-numeric:tabular-nums}
+.facts dd small{font-family:var(--f-body);font-size:13px;color:var(--muted);margin-left:4px}
+
+.hist{display:grid;gap:12px}
+.hist ol{list-style:none;margin:0;padding:0;display:grid}
+.hist li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;padding-block:8px;border-bottom:1px solid var(--rule);font-size:14px}
+.hist li span:last-child{font-family:var(--f-mono);color:var(--accent);font-variant-numeric:tabular-nums}
+.hist .empty{color:var(--muted);font-size:14px;margin:0}
+footer{font-size:12px;color:var(--muted);border-top:1px solid var(--rule);padding-top:16px;max-width:60em}
+footer p{margin:0 0 6px}
+
+@media (max-width:820px){
+  .hero,.life{grid-template-columns:minmax(0,1fr);gap:32px}
+  .hero-l{position:static}
+  .sheet{padding:20px 18px 24px}
+  .verdict{padding-right:0;padding-bottom:110px}
+  .who .name{font-size:32px}
+  .row{grid-template-columns:5.2em minmax(0,1fr) auto}
+}
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<main class="wrap">
+  <section class="hero">
+    <div class="hero-l">
+      <p class="eyebrow">대한민국 인생 추첨</p>
+      <h1>5천만분의 1</h1>
+      <p class="lede">대한민국 사람 5,121만 명 가운데 한 명으로 무작위로 태어납니다. 나이, 사는 곳, 성씨, 학력, 직업, 소득이 실제 통계 비율대로 정해지고, 조건이 하나 붙을 때마다 나와 같은 사람의 수가 줄어듭니다.</p>
+      <div class="counter">
+        <span class="c-label" id="countLabel">나와 같은 조건의 사람</span>
+        <output class="c-num" id="count" aria-live="polite">51,217,221<small>명</small></output>
+        <div class="meter" aria-hidden="true"><i id="meter" style="width:100%"></i></div>
+        <div class="scale" aria-hidden="true"><span>0.01명</span><span>1명</span><span>5천만 명</span></div>
+      </div>
+      <div class="actions">
+        <button id="roll" type="button">다시 태어나기</button>
+        <button id="copy" type="button" class="ghost">결과 복사</button>
+      </div>
+      <p class="toast" id="toast" role="status"></p>
+    </div>
+
+    <article class="sheet" aria-label="가상 주민등록표">
+      <div class="sheet-head"><b>주민등록표</b><span id="docno">문서확인번호 0000-0000-0000</span></div>
+      <div class="who"><span class="name" id="name">—</span><span class="rrn" id="rrn">000000-0●●●●●●</span></div>
+      <dl id="rows"></dl>
+      <div class="verdict" id="verdict"></div>
+      <div class="seal off" id="seal" aria-hidden="true"><span>분</span><span>오</span><span>의</span><span>천</span><span>일</span><span>만</span></div>
+    </article>
+  </section>
+
+  <section class="life" aria-labelledby="lifeTitle">
+    <div class="life-l">
+      <p class="eyebrow">기대수명 기준</p>
+      <h2 id="lifeTitle">남은 시간</h2>
+      <p id="lifeText"></p>
+      <div class="years" id="years" aria-hidden="true"></div>
+      <div class="legend"><span><i class="l1"></i>지나온 해</span><span><i class="l2"></i>올해</span><span><i></i>남은 해(기대)</span></div>
+    </div>
+    <dl class="facts" id="facts"></dl>
+  </section>
+
+  <section class="hist" aria-labelledby="histTitle">
+    <h2 id="histTitle">지난 인생</h2>
+    <ol id="hist"></ol>
+  </section>
+
+  <footer>
+    <p>모든 비율은 통계청(KOSIS) 주민등록인구·인구총조사·경제활동인구조사·생명표, 한국갤럽 혈액형 조사 등을 바탕으로 반올림한 근사치입니다. 항목끼리의 상관관계는 나이·성별 정도만 반영했기 때문에 실제 인원과 다를 수 있습니다.</p>
+    <p>주민등록번호와 문서번호는 무작위로 만든 가짜이며 실제 사람과 관계없습니다.</p>
+  </footer>
+</main>
+
+<script>
+(() => {
+const POP = 51217221;
+const YEAR = new Date().getFullYear();
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function wpick(list){
+  const t = list.reduce((s,x)=>s+x[1],0);
+  let r = Math.random()*t;
+  for (const x of list){ r -= x[1]; if (r < 0) return {v:x[0], p:x[1]/t}; }
+  const x = list[list.length-1]; return {v:x[0], p:x[1]/t};
+}
+const rnd = a => a[Math.floor(Math.random()*a.length)];
+
+const AGE = [[0,4,3.0],[5,9,4.0],[10,14,4.6],[15,19,4.4],[20,24,5.3],[25,29,6.6],[30,34,6.6],[35,39,6.4],[40,44,7.4],[45,49,7.7],[50,54,8.4],[55,59,8.3],[60,64,8.1],[65,69,6.6],[70,74,4.6],[75,79,3.4],[80,84,2.5],[85,99,2.1]];
+const REGION = [['경기도',13.69],['서울특별시',9.33],['부산광역시',3.27],['경상남도',3.24],['인천광역시',3.02],['경상북도',2.53],['대구광역시',2.36],['충청남도',2.13],['전라남도',1.79],['전북특별자치도',1.74],['충청북도',1.59],['강원특별자치도',1.52],['대전광역시',1.44],['광주광역시',1.40],['울산광역시',1.10],['제주특별자치도',0.67],['세종특별자치시',0.39]];
+const SURNAME = [['김',21.5],['이',14.7],['박',8.4],['최',4.7],['정',4.3],['강',2.4],['조',2.1],['윤',2.1],['장',2.0],['임',1.7],['한',1.5],['오',1.5],['서',1.5],['신',1.5],['권',1.4],['황',1.4],['안',1.4],['송',1.3],['전',1.1],['홍',1.1]]
+  .concat('유고문양손배백허남심노하곽성차주우구민류나진지엄채원천방공현'.split('').map(c=>[c,0.75]));
+const BLOOD = [['A형',34],['O형',28],['B형',27],['AB형',11]];
+const NAMES = [
+  [1960,['영수','영호','영식','정수','상철','성수','종수'],['영자','정숙','순자','영숙','춘자','옥순','말순']],
+  [1970,['영수','성호','영철','정호','경수','상훈'],['미숙','경숙','영숙','정희','미경','혜숙']],
+  [1980,['정훈','성진','성호','상훈','성훈','영훈'],['은주','미영','은정','현정','지영','미정']],
+  [1990,['지훈','성민','성훈','현우','정훈','동현'],['지영','은지','수진','지혜','은영','혜진']],
+  [2000,['동현','지훈','성민','현우','준호','민수'],['지은','유진','민지','수진','지현','지혜']],
+  [2010,['민준','현우','동현','준혁','민재','지훈'],['서연','민지','수빈','서현','지원','유진']],
+  [9999,['민준','서준','도윤','예준','시우','하준','주원'],['서연','서윤','지우','하윤','하은','지유','수아']]
+];
+const EDU = [
+  [34,[['중졸 이하',2],['고졸',28],['전문대졸',20],['대졸',44],['대학원졸',6]]],
+  [44,[['중졸 이하',3],['고졸',32],['전문대졸',18],['대졸',40],['대학원졸',7]]],
+  [54,[['중졸 이하',8],['고졸',42],['전문대졸',13],['대졸',31],['대학원졸',6]]],
+  [64,[['중졸 이하',22],['고졸',47],['전문대졸',7],['대졸',20],['대학원졸',4]]],
+  [74,[['중졸 이하',48],['고졸',33],['전문대졸',3],['대졸',13],['대학원졸',3]]],
+  [999,[['중졸 이하',75],['고졸',16],['전문대졸',1],['대졸',7],['대학원졸',1]]]
+];
+const INDUSTRY = [['제조업',16],['도소매업',12],['보건·사회복지',10.5],['숙박·음식점업',8],['건설업',7.5],['교육 서비스',6.5],['운수·창고업',6],['농림어업',5],['사업시설관리·지원',5],['전문·과학·기술',5],['공공행정',4.5],['정보통신업',3.5],['금융·보험업',2.7],['기타 서비스',7.8]];
+const INCOME = [
+  [29,[12,20,38,20,6,3,1]],[49,[5,10,22,22,16,18,7]],[64,[9,17,22,17,12,15,8]],[999,[35,30,17,8,4,4,2]]
+];
+const INCOME_LABEL = ['월 100만 원 미만','월 100~200만 원','월 200~300만 원','월 300~400만 원','월 400~500만 원','월 500~800만 원','월 800만 원 이상'];
+const MARITAL = [
+  [24,[97,3,0,0]],[29,[88,11,1,0]],[34,[60,38,2,0]],[39,[38,58,4,0]],[44,[26,67,6,1]],[49,[19,72,8,1]],
+  [54,[13,76,9,2]],[59,[9,78,10,3]],[64,[6,79,10,5]],[69,[4,78,9,9]],[74,[3,72,7,18]],[79,[2,60,5,33]],[999,[2,40,3,55]]
+];
+const MARITAL_LABEL = ['미혼','배우자 있음','이혼','사별'];
+const HOUSE = [['아파트',52],['단독주택',28],['연립·다세대',11],['오피스텔·기타',9]];
+const RELIGION = [['종교 없음',56.1],['개신교',19.7],['불교',15.5],['천주교',7.9],['기타 종교',0.8]];
+const byAge = (tbl, age) => tbl.find(r => age <= r[0])[1];
+
+// 생명표 기대여명(근사): [나이, 남, 여]
+const LIFE = [[0,80.6,86.4],[10,71.0,76.8],[20,61.1,66.9],[30,51.5,57.1],[40,42.0,47.4],[50,32.7,37.8],[60,23.8,28.5],[70,15.7,19.5],[80,8.9,11.5],[90,4.3,5.5],[100,2.0,2.4]];
+function remaining(age, male){
+  for (let i=0;i<LIFE.length-1;i++){
+    const [a0,m0,f0]=LIFE[i],[a1,m1,f1]=LIFE[i+1];
+    if (age<=a1){ const t=(age-a0)/(a1-a0); return male ? m0+(m1-m0)*t : f0+(f1-f0)*t; }
+  }
+  return 2;
+}
+
+function generate(){
+  const rows = []; let prob = 1;
+  const add = (label, value, p, note) => { rows.push({label, value, p, note}); prob *= p; };
+
+  const band = wpick(AGE.map(a=>[a,a[2]]));
+  const ages = []; for (let i=band.v[0]; i<=band.v[1]; i++) ages.push([i, band.v[0]===85 ? Math.pow(0.8,i-85) : 1]);
+  const ag = wpick(ages); const age = ag.v; const by = YEAR - age;
+  add('출생', `${by}년생 · 만 ${age}세`, band.p*ag.p);
+
+  const m = age<60 ? .512 : age<75 ? .48 : age<85 ? .42 : .3;
+  const sx = wpick([['남',m],['여',1-m]]); const male = sx.v==='남';
+  add('성별', male ? '남자' : '여자', sx.p);
+
+  const rg = wpick(REGION); add('주소', rg.v, rg.p);
+  const sn = wpick(SURNAME); add('성씨', `${sn.v}씨`, sn.p);
+  const bl = wpick(BLOOD); add('혈액형', bl.v, bl.p);
+
+  let edu;
+  if (age<7) edu={v:'미취학',p:1};
+  else if (age<=12) edu={v:'초등학생',p:1};
+  else if (age<=15) edu={v:'중학생',p:1};
+  else if (age<=18) edu={v:'고등학생',p:1};
+  else if (age<=24) edu=wpick([['대학 재학',55],['고졸',28],['전문대졸',8],['대졸',9]]);
+  else edu=wpick(byAge(EDU,age));
+  add('학력', edu.v, edu.p);
+
+  let employed=false, job='', jobP=1, empAge=age>=15;
+  if (empAge){
+    let rate = age<20?.07:age<25?.45:age<30?.72:age<40?.78:age<50?.79:age<60?.77:age<65?.63:age<70?.52:age<75?.40:.22;
+    if (age>=35 && age<65) rate += male ? .09 : -.09;
+    if (Math.random()<rate){
+      employed = true;
+      const types = age<30?[['정규직',70],['비정규직',25],['자영업',5]]:age<50?[['정규직',65],['비정규직',17],['자영업',18]]:age<65?[['정규직',45],['비정규직',28],['자영업',27]]:[['정규직',20],['비정규직',45],['자영업',35]];
+      const t = wpick(types); job=t.v; jobP=rate*t.p;
+    } else {
+      let o;
+      if (age<25) o = (edu.v==='대학 재학'||edu.v==='고등학생') ? {v:'학생',p:1} : {v:'구직 중 · 쉬는 중',p:1};
+      else if (age<60) o = wpick(male?[['구직 중 · 쉬는 중',92],['전업주부',8]]:[['구직 중 · 쉬는 중',40],['전업주부',60]]);
+      else o = wpick([['은퇴',80],['가사·돌봄',20]]);
+      job=o.v; jobP=(1-rate)*o.p;
+    }
+    add('경제활동', job, jobP);
+  }
+  let industry='', income='';
+  if (employed){
+    const ind = wpick(INDUSTRY); industry=ind.v; add('업종', ind.v, ind.p);
+    const inc = wpick(byAge(INCOME,age).map((w,i)=>[INCOME_LABEL[i],w])); income=inc.v;
+    add('소득', inc.v, inc.p, '세전 월급·사업소득 기준');
+  }
+  let marital='미혼';
+  if (age>=18){ const mr = wpick(byAge(MARITAL,age).map((w,i)=>[MARITAL_LABEL[i],w])); marital=mr.v; add('혼인', mr.v, mr.p); }
+
+  let tenure;
+  if (age<20) tenure={v:'부모님과 함께',p:1};
+  else if (age<30) tenure=wpick([['부모님 집',45],['월세',30],['전세',15],['자가',10]]);
+  else tenure=wpick([['자가',61],['월세',21],['전세',15],['기타',3]]);
+  const ht = wpick(HOUSE);
+  add('주거', `${ht.v} · ${tenure.v}`, ht.p*tenure.p);
+
+  const re = wpick(RELIGION); add('종교', re.v, re.p);
+
+  const nm = NAMES.find(n => by < n[0]);
+  const given = rnd(male ? nm[1] : nm[2]);
+  const mm = 1+Math.floor(Math.random()*12), dd = 1+Math.floor(Math.random()*28);
+  const pad = n => String(n).padStart(2,'0');
+  const g = by>=2000 ? (male?3:4) : (male?1:2);
+  const rrn = `${pad(by%100)}${pad(mm)}${pad(dd)}-${g}●●●●●●`;
+
+  return {rows, prob, expected: POP*prob, name: sn.v+given, rrn, age, by, male, region: rg.v, job, industry, income, marital,
+          remain: remaining(age, male)};
+}
+
+// ── formatting ─────────────────────────────────
+function fmtCount(n){
+  if (n>=10) return Math.round(n).toLocaleString('ko-KR');
+  if (n>=1) return n.toFixed(1);
+  if (n>=0.01) return n.toFixed(2);
+  return n.toPrecision(2);
+}
+function korNum(x){
+  if (x>=1e12) return (x/1e12).toFixed(1).replace(/\.0$/,'')+'조';
+  if (x>=1e8) return (x/1e8).toFixed(1).replace(/\.0$/,'')+'억';
+  if (x>=1e4) return Math.round(x/1e4).toLocaleString('ko-KR')+'만';
+  return Math.round(x).toLocaleString('ko-KR');
+}
+function fmtP(p){
+  if (p>=0.995) return '확정';
+  if (p>=0.1) return Math.round(p*100)+'%';
+  if (p>=0.01) return (p*100).toFixed(1)+'%';
+  return '1/'+korNum(1/p);
+}
+const $ = id => document.getElementById(id);
+function setCount(n){
+  $('count').innerHTML = `${fmtCount(n)}<small>명</small>`;
+  const w = Math.max(0, Math.min(100, (Math.log10(Math.max(n,1e-2))+2)/(Math.log10(POP)+2)*100));
+  $('meter').style.width = w+'%';
+}
+
+// ── render ─────────────────────────────────────
+let current = null, token = 0;
+function renderStatic(L){
+  $('name').textContent = L.name;
+  $('rrn').textContent = L.rrn;
+  $('docno').textContent = '문서확인번호 ' + [0,0,0].map(()=>String(Math.floor(Math.random()*1e4)).padStart(4,'0')).join('-');
+  $('rows').innerHTML = L.rows.map(r => `<div class="row wait"><dt>${r.label}</dt><dd>${r.value}</dd><span class="p">${fmtP(r.p)}</span>${r.note?`<span class="note">${r.note}</span>`:''}</div>`).join('');
+}
+function renderVerdict(L){
+  const e = L.expected;
+  let big, small;
+  if (e < 1){
+    big = `통계로 보면 대한민국에 이런 사람은 당신 한 명뿐입니다.`;
+    small = `이 조합이 나올 확률은 ${korNum(1/L.prob)}분의 1. 5천만 명 가운데 기대 인원 ${fmtCount(e)}명입니다.`;
+  } else if (e < 10){
+    big = `당신과 같은 조건의 사람이 전국에 ${Math.round(e)}명 남짓 있습니다.`;
+    small = `확률 ${korNum(1/L.prob)}분의 1. 한 교실도 채우지 못하는 숫자입니다.`;
+  } else {
+    big = `당신과 같은 조건의 사람이 약 ${Math.round(e).toLocaleString('ko-KR')}명 있습니다.`;
+    small = `확률 ${korNum(1/L.prob)}분의 1. 아직 조건이 적어 흔한 편입니다.`;
+  }
+  $('verdict').innerHTML = `<p class="big">${big}</p><p class="small">${small}</p>`;
+}
+function renderLife(L){
+  const r = L.remain, end = Math.round(L.age + r);
+  $('lifeText').textContent = `${L.male?'남자':'여자'} 만 ${L.age}세의 기대여명은 약 ${r.toFixed(1)}년입니다. 통계대로라면 ${L.by+end}년 무렵, ${end}세까지 살게 됩니다.`;
+  const cells = Math.max(end+1, L.age+1);
+  let h=''; for (let i=0;i<cells;i++) h += `<span class="${i<L.age?'lived':i===L.age?'now':''}"></span>`;
+  $('years').innerHTML = h;
+  const yrs = Math.floor(r);
+  const facts = [
+    ['지금까지 산 날', (L.age*365+Math.floor(L.age/4)).toLocaleString('ko-KR'), '일'],
+    ['남은 날', Math.round(r*365.25).toLocaleString('ko-KR'), '일'],
+    ['남은 주말', Math.round(r*52.18).toLocaleString('ko-KR'), '번'],
+    ['남은 설날·추석', yrs, '번씩'],
+    ['남은 대통령 선거', Math.floor(r/5), '번'],
+    ['남은 월드컵', Math.floor(r/4), '번'],
+  ];
+  $('facts').innerHTML = facts.map(f=>`<div><dt>${f[0]}</dt><dd>${f[1]}<small>${f[2]}</small></dd></div>`).join('');
+}
+
+// ── history (per-viewer, optional) ─────────────
+const HKEY = 'one-in-50m-history';
+function loadHist(){ try { return JSON.parse(localStorage.getItem(HKEY)) || []; } catch { return []; } }
+function saveHist(h){ try { localStorage.setItem(HKEY, JSON.stringify(h)); } catch {} }
+let history = loadHist();
+function pushHist(L){
+  history.unshift({t:`${L.name} · ${L.by}년생 ${L.male?'남':'여'} · ${L.region.replace(/(특별자치시|특별자치도|특별시|광역시)$/,'')} · ${L.job||'—'}`, e:L.expected});
+  history = history.slice(0,8); saveHist(history); renderHist();
+}
+function renderHist(){
+  $('hist').innerHTML = history.length
+    ? history.map(h=>`<li><span>${h.t}</span><span>${fmtCount(h.e)}명</span></li>`).join('')
+    : '<li><span class="empty">아직 기록이 없습니다. 다시 태어나면 여기에 쌓입니다.</span><span></span></li>';
+}
+
+// ── play ───────────────────────────────────────
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+function tween(from, to, ms, my){
+  return new Promise(res => {
+    if (reduce || ms===0){ setCount(to); return res(); }
+    const a=Math.log(Math.max(from,1e-6)), b=Math.log(Math.max(to,1e-6)), t0=performance.now();
+    (function step(now){
+      if (my!==token) return res();
+      const t=Math.min(1,(now-t0)/ms), k=1-Math.pow(1-t,3);
+      setCount(Math.exp(a+(b-a)*k));
+      t<1 ? requestAnimationFrame(step) : res();
+    })(t0);
+  });
+}
+async function play(animate){
+  const my = ++token;
+  const L = generate(); current = L;
+  renderStatic(L); renderLife(L);
+  const seal = $('seal'); seal.className='seal off';
+  $('verdict').innerHTML = '';
+  $('roll').disabled = animate;
+  let n = POP; setCount(n);
+  const rowEls = [...document.querySelectorAll('#rows .row')];
+  for (let i=0;i<L.rows.length;i++){
+    if (my!==token) return;
+    const el=rowEls[i]; el.classList.remove('wait');
+    const next = n*L.rows[i].p;
+    if (animate && !reduce){ el.classList.add('flash'); await tween(n, next, 520, my); await sleep(120); }
+    n = next;
+  }
+  setCount(L.expected);
+  renderVerdict(L);
+  seal.className = (animate && !reduce) ? 'seal stamp' : 'seal';
+  $('roll').disabled = false;
+  pushHist(L);
+}
+
+$('roll').addEventListener('click', () => { $('toast').textContent=''; play(true); });
+$('copy').addEventListener('click', () => {
+  if (!current) return;
+  const L=current;
+  const text = `[5천만분의 1] 나는 ${L.by}년생 ${L.male?'남자':'여자'} ${L.name}. ${L.region}에 살고 ${L.job||'아직 어린이'}${L.industry?`(${L.industry})`:''}, ${L.marital}. 대한민국에 나와 같은 사람은 ${fmtCount(L.expected)}명, 확률은 ${korNum(1/L.prob)}분의 1.`;
+  const done = () => $('toast').textContent='결과를 복사했습니다.';
+  const fail = () => { $('toast').textContent=text; };
+  try { navigator.clipboard.writeText(text).then(done, fail); } catch { fail(); }
+});
+
+renderHist();
+play(false);
+})();
+</script>
+
+</body>
+</html>
