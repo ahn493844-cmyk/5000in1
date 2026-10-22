@@ -3,31 +3,32 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-</head>
-<body>
 <title>5천만분의 1</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@400;800&family=IBM+Plex+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@500&display=swap">
 <style>
-/* Layout: 위 = 줄어드는 인원수와 출생신고서, 아래 = 지금 상태(왼쪽)와 한 해씩 쌓이는 인생 기록·선택(오른쪽). */
+/* 위 = 줄어드는 인원수와 출생신고서, 가운데 = 지금 상태(왼쪽)와 흐르는 인생 기록·선택·개표(오른쪽), 아래 = 정치판(국회·순위·소식). */
 :root{
   --paper:#E9EFEC; --sheet:#F7FAF8; --ink:#16212A; --muted:#56676C; --rule:#C6D2CE;
   --accent:#2C6A58; --seal:#C2392C; --guil:rgba(44,106,88,.075);
+  --p0:#2F62B0; --p1:#C8382C; --p2:#C98A12; --p3:#8A949A;
   --f-display:"Nanum Myeongjo","Batang",serif;
   --f-body:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
   --f-mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",monospace;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
   --paper:#0E1417; --sheet:#151D21; --ink:#E2E9E6; --muted:#8C9D98; --rule:#2A373B;
-  --accent:#7DC1AA; --seal:#E5604F; --guil:rgba(125,193,170,.07); color-scheme:dark}}
+  --accent:#7DC1AA; --seal:#E5604F; --guil:rgba(125,193,170,.07);
+  --p0:#6E9EEA; --p1:#EE6A5B; --p2:#E2B04A; --p3:#7F8B90; color-scheme:dark}}
 :root[data-theme="dark"]{
   --paper:#0E1417; --sheet:#151D21; --ink:#E2E9E6; --muted:#8C9D98; --rule:#2A373B;
-  --accent:#7DC1AA; --seal:#E5604F; --guil:rgba(125,193,170,.07); color-scheme:dark}
+  --accent:#7DC1AA; --seal:#E5604F; --guil:rgba(125,193,170,.07);
+  --p0:#6E9EEA; --p1:#EE6A5B; --p2:#E2B04A; --p3:#7F8B90; color-scheme:dark}
 
 *{box-sizing:border-box}
-body{background:var(--paper);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.6;word-break:keep-all;overflow-wrap:break-word}
-.wrap{max-width:1120px;margin:0 auto;padding-inline:20px;padding-block:40px 64px;display:grid;gap:56px}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.6;word-break:keep-all;overflow-wrap:break-word}
+.wrap{max-width:1120px;margin:0 auto;padding-inline:16px;padding-block:40px 64px;display:grid;gap:56px}
 .eyebrow{font-size:12px;letter-spacing:.14em;color:var(--accent);font-weight:700;margin:0}
 h1,h2,h3{font-family:var(--f-display);font-weight:800;text-wrap:balance;margin:0}
 h1{font-size:clamp(48px,8vw,88px);line-height:1;letter-spacing:-.02em}
@@ -76,7 +77,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .verdict .big{font-family:var(--f-display);font-weight:800;font-size:21px;line-height:1.35;text-wrap:balance}
 .verdict .small{font-size:13px;color:var(--muted);margin-top:6px}
 .seal{position:absolute;right:26px;bottom:26px;width:104px;height:104px;border:4px solid var(--seal);color:var(--seal);
-  display:grid;grid-template-columns:1fr 1fr;grid-template-rows:repeat(3,1fr);padding:6px;transform:rotate(-7deg);
+  display:grid;grid-template-columns:1fr 1fr;grid-template-rows:repeat(2,1fr);padding:8px;transform:rotate(-7deg);
   font-family:var(--f-display);font-weight:800;font-size:22px;line-height:1;place-items:center;opacity:.9;border-radius:6px}
 .seal.off{opacity:0;transform:rotate(-7deg) scale(1.7)}
 .seal.stamp{animation:stamp .38s cubic-bezier(.2,1.4,.4,1) both}
@@ -119,6 +120,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .ln.k-world::before{content:"세상";font-size:11px;letter-spacing:.08em;color:var(--accent);font-weight:700;margin-right:8px}
 .ln.k-pick{color:var(--accent);font-weight:700;font-size:13px}
 .ln.k-pick::before{content:"▸ "}
+.ln.k-big{font-weight:700}
 .ln.k-death{font-family:var(--f-display);font-weight:800;font-size:19px;color:var(--seal)}
 
 .choice{border:2px solid var(--ink);background:var(--sheet);padding:18px;display:grid;gap:10px}
@@ -134,8 +136,58 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .summary dl{margin:0;display:grid}
 .summary .acts{display:flex;gap:8px;flex-wrap:wrap}
 .controls{display:flex;gap:8px;flex-wrap:wrap;position:sticky;bottom:0;background:var(--paper);padding-block:10px calc(10px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--rule);z-index:2}
-.controls button{flex:1 1 8em}
+.controls{align-items:center} .controls #reborn{margin-left:auto}
 .toast{font-size:13px;color:var(--accent);min-height:1.2em;margin:0}
+
+/* 개표 */
+.count{border:2px solid var(--ink);background:var(--sheet);padding:18px;display:grid;gap:12px}
+.count h3{font-size:21px}
+.bars{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.bars li{display:grid;grid-template-columns:minmax(6.5em,9em) minmax(0,1fr) 4.2em;gap:10px;align-items:center;font-size:14px}
+.bars li.me .nm{font-weight:700;color:var(--seal)}
+.bars .nm small{display:block;font-size:11px;color:var(--muted);font-weight:400}
+.bars .track{height:18px;background:var(--rule)}
+.bars .track i{display:block;height:100%;width:0;transition:width .12s linear}
+.bars b{font-family:var(--f-mono);font-weight:500;text-align:right;font-variant-numeric:tabular-nums}
+.progress{margin:0;font-family:var(--f-mono);font-size:12px;color:var(--muted)}
+.outcome{margin:0;font-family:var(--f-display);font-weight:800;font-size:28px;min-height:1.2em}
+.outcome.win{color:var(--accent)} .outcome.lose{color:var(--seal)}
+i.p0{background:var(--p0)} i.p1{background:var(--p1)} i.p2{background:var(--p2)} i.p3{background:var(--p3)}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:1px}
+.speed{display:flex;flex-wrap:wrap;border:2px solid var(--ink)}
+.speed button{background:transparent;color:var(--ink);border:0;padding:8px 14px;font-weight:500;font-size:14px}
+.speed button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+.state{font-size:13px;color:var(--muted);margin:0;align-self:center}
+
+/* 정치판 */
+.board{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,4fr) minmax(0,4fr);gap:32px;border-top:2px solid var(--ink);padding-top:24px;align-items:start}
+.board h2{font-size:22px;margin-bottom:10px}
+.panel{display:grid;gap:12px;min-width:0}
+#house{display:block;width:100%;height:190px}
+.housekey{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:13px}
+.housekey b{font-family:var(--f-mono);font-weight:500}
+.muted{color:var(--muted)}
+.pres{display:grid;gap:2px;border:1px solid var(--rule);background:var(--sheet);padding:12px 14px;font-size:13px}
+.pres .lbl{font-size:11px;letter-spacing:.1em;color:var(--accent);font-weight:700}
+.pres b{font-family:var(--f-display);font-size:22px}
+.pres .appr{display:flex;align-items:center;gap:8px}
+.pres .appr .bar{flex:1;height:6px;background:var(--rule)}
+.pres .appr .bar i{display:block;height:100%;background:var(--accent)}
+.rank{list-style:none;margin:0;padding:0;border-top:2px solid var(--ink)}
+.rank li{display:grid;grid-template-columns:2em minmax(0,1fr) auto;gap:8px;align-items:center;padding:6px 2px;border-bottom:1px solid var(--rule);font-size:14px}
+.rank li.me{background:var(--guil)}
+.rank li.me b{color:var(--seal)}
+.rank li.gap{display:block;text-align:center;color:var(--muted);padding:2px}
+.rank .rk{font-family:var(--f-mono);color:var(--muted);text-align:right}
+.rank .who{min-width:0}
+.rank .who small{display:block;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rank .pw{font-family:var(--f-mono);font-size:13px;color:var(--accent);font-variant-numeric:tabular-nums}
+.rank .up{color:var(--accent);font-size:10px;margin-left:4px} .rank .dn{color:var(--seal);font-size:10px;margin-left:4px}
+.note{font-size:12px;color:var(--muted);margin:0}
+.news{list-style:none;margin:0;padding:0;border-top:2px solid var(--ink);font-size:13px}
+.news li{padding:6px 2px;border-bottom:1px solid var(--rule)}
+.news li span{font-family:var(--f-mono);font-size:11px;color:var(--muted);margin-right:8px}
+.news li.big{font-weight:700}
 
 .hist{display:grid;gap:12px}
 .hist ol{list-style:none;margin:0;padding:0;display:grid}
@@ -145,8 +197,9 @@ button:disabled{opacity:.45;cursor:not-allowed}
 footer{font-size:12px;color:var(--muted);border-top:1px solid var(--rule);padding-top:16px;max-width:62em}
 footer p{margin:0 0 6px}
 
+@media (max-width:980px){ .board{grid-template-columns:minmax(0,1fr) minmax(0,1fr)} .board .panel:first-child{grid-column:1/-1} }
 @media (max-width:820px){
-  .hero,.game{grid-template-columns:minmax(0,1fr);gap:28px}
+  .hero,.game,.board{grid-template-columns:minmax(0,1fr);gap:28px}
   .hero-l,.status{position:static}
   .sheet{padding:20px 18px 24px}
   .verdict{padding-right:0;padding-bottom:110px}
@@ -154,7 +207,8 @@ footer p{margin:0 0 6px}
   .row{grid-template-columns:5.6em minmax(0,1fr) auto}
   /* 휴대폰: 선택지와 버튼을 먼저, 기록은 최신 해부터 */
   #choice{order:1} .controls{order:2;position:static;border-top:0;padding-block:0} .toast{order:3}
-  .log{order:4;max-height:none;overflow:visible;display:flex;flex-direction:column-reverse}
+  .log{order:4;max-height:70vh;display:flex;flex-direction:column-reverse}
+  .bars li{grid-template-columns:minmax(5.5em,7em) minmax(0,1fr) 3.8em}
   .stats{grid-template-columns:1fr 1fr;column-gap:18px}
   .agebig{font-size:52px}
 }
@@ -164,22 +218,16 @@ footer p{margin:0 0 6px}
 <main class="wrap">
   <section class="hero">
     <div class="hero-l">
-      <p class="eyebrow">대한민국 인생 추첨</p>
+      <p class="eyebrow">대한민국 정치 인생 시뮬레이터</p>
       <h1>5천만분의 1</h1>
-      <p class="lede">대한민국에서 한 아기로 태어나 직접 살아 봅니다. 부모님의 나이와 직업, 집안 형편이 실제 통계 비율대로 정해지고, 그다음부터는 한 해씩 당신의 선택으로 삽니다.</p>
+      <p class="lede">대통령은 5천만 명 가운데 한 명입니다. 대한민국 어딘가에서 한 아기로 태어나, 저절로 흐르는 시간 속에서 살아갑니다. 정당에 들어가고, 선거에 나가고, 수백 명의 다른 정치인과 같은 판에서 겨룹니다.</p>
       <div class="counter">
         <span class="c-label">나와 같은 조건으로 태어난 사람</span>
         <output class="c-num" id="count" aria-live="polite">51,217,221<small>명</small></output>
         <div class="meter" aria-hidden="true"><i id="meter" style="width:100%"></i></div>
         <div class="scale" aria-hidden="true"><span>0.01명</span><span>1명</span><span>5천만 명</span></div>
       </div>
-      <div class="born">
-        <div class="seg" role="group" aria-label="태어날 때">
-          <button type="button" id="modeNow" aria-pressed="true">올해 태어나기</button>
-          <button type="button" id="modePast" aria-pressed="false">지난 시대에 태어나기</button>
-        </div>
-        <div><button id="roll" type="button">다시 태어나기</button></div>
-      </div>
+      <div><button id="roll" type="button">다시 태어나기</button></div>
     </div>
 
     <article class="sheet" aria-label="출생신고서">
@@ -187,7 +235,7 @@ footer p{margin:0 0 6px}
       <div class="who"><span class="name" id="name">—</span><span class="rrn" id="rrn">000000-0●●●●●●</span></div>
       <dl class="rows" id="rows"></dl>
       <div class="verdict" id="verdict"></div>
-      <div class="seal off" id="seal" aria-hidden="true"><span>분</span><span>오</span><span>의</span><span>천</span><span>일</span><span>만</span></div>
+      <div class="seal off" id="seal" aria-hidden="true"><span>오</span><span>천</span><span>만</span><span>일</span></div>
     </article>
   </section>
 
@@ -203,11 +251,34 @@ footer p{margin:0 0 6px}
       <ol class="log" id="log" aria-label="인생 기록"></ol>
       <div id="choice"></div>
       <div class="controls">
-        <button type="button" id="b1">1년 살기</button>
-        <button type="button" id="b5" class="ghost">5년 살기</button>
-        <button type="button" id="bAll" class="ghost">끝까지 살기</button>
+        <div class="speed" id="speed" role="group" aria-label="시간 흐름">
+          <button type="button" data-s="0" aria-pressed="false">멈춤</button>
+          <button type="button" data-s="1" aria-pressed="true">1배</button>
+          <button type="button" data-s="3" aria-pressed="false">3배</button>
+          <button type="button" data-s="10" aria-pressed="false">10배</button>
+        </div>
+        <p class="state" id="state"></p>
+        <button type="button" class="ghost" id="reborn">다시 태어나기</button>
       </div>
       <p class="toast" id="toast" role="status"></p>
+    </div>
+  </section>
+
+  <section class="board" aria-labelledby="boardTitle">
+    <div class="panel">
+      <h2 id="boardTitle">국회 300석</h2>
+      <canvas id="house" aria-label="국회 의석 분포"></canvas>
+      <div class="housekey" id="houseKey"></div>
+      <div class="pres" id="presBox"></div>
+    </div>
+    <div class="panel">
+      <h2>실시간 정치인 순위</h2>
+      <ol class="rank" id="rank"></ol>
+      <p class="note" id="rankNote"></p>
+    </div>
+    <div class="panel">
+      <h2>정치 소식</h2>
+      <ul class="news" id="news"></ul>
     </div>
   </section>
 
@@ -217,8 +288,8 @@ footer p{margin:0 0 6px}
   </section>
 
   <footer>
-    <p>출생·부모 나이·형제 수·직업 분포·소득분위·혼인과 출산 나이·대학 진학률·암 발생률·기대수명 같은 숫자는 통계청(KOSIS) 인구동향·인구총조사·가계금융복지조사·경제활동인구조사·생명표, 국가암등록통계 등을 바탕으로 반올림한 근사치입니다. 돈은 모두 지금 돈 가치로 계산합니다.</p>
-    <p>이름, 주민등록번호, 접수번호는 무작위로 만든 가짜이며 실제 사람과 관계없습니다.</p>
+    <p>출생 수, 출생지 비율, 성씨 비율, 기대수명은 통계청(KOSIS) 자료를, 시·도별 정치 성향은 최근 총선·대선의 양당 득표율을, 국회 의석 수(지역구 254·비례 46)와 지방선거 자리 수는 공직선거법을 바탕으로 반올림한 근사치입니다.</p>
+    <p>푸른당·붉은당·새길당은 가상의 정당이며, 다른 정치인의 이름은 모두 무작위로 만든 것이라 실제 인물과 관계없습니다. 다른 정치인은 컴퓨터가 움직입니다.</p>
   </footer>
 </main>
 
