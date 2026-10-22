@@ -12,7 +12,7 @@
 :root{
   --paper:#E9EFEC; --sheet:#F7FAF8; --ink:#16212A; --muted:#56676C; --rule:#C6D2CE;
   --accent:#2C6A58; --seal:#C2392C; --guil:rgba(44,106,88,.075);
-  --p0:#2F62B0; --p1:#C8382C; --p2:#C98A12; --p3:#8A949A;
+  --p0:#C8382C; --p1:#7E1414; --p2:#2E2E2E; --p3:#D4AE10; --p4:#D9822B; --p5:#3B5BA0; --p6:#7A5230; --p7:#9AA0A6; --p8:#1F1F1F; --p9:#E0B800; --p10:#B02525;
   --f-display:"Nanum Myeongjo","Batang",serif;
   --f-body:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
   --f-mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",monospace;
@@ -20,11 +20,11 @@
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
   --paper:#0E1417; --sheet:#151D21; --ink:#E2E9E6; --muted:#8C9D98; --rule:#2A373B;
   --accent:#7DC1AA; --seal:#E5604F; --guil:rgba(125,193,170,.07);
-  --p0:#6E9EEA; --p1:#EE6A5B; --p2:#E2B04A; --p3:#7F8B90; color-scheme:dark}}
+  --p0:#EE6A5B; --p1:#B23A3A; --p2:#C9C9C9; --p3:#E6C84A; --p4:#EE9E55; --p5:#7D9BE0; --p6:#B88A5E; --p7:#7F8B90; --p8:#E8E8E8; --p9:#F2D45C; --p10:#D9534F; color-scheme:dark}}
 :root[data-theme="dark"]{
   --paper:#0E1417; --sheet:#151D21; --ink:#E2E9E6; --muted:#8C9D98; --rule:#2A373B;
   --accent:#7DC1AA; --seal:#E5604F; --guil:rgba(125,193,170,.07);
-  --p0:#6E9EEA; --p1:#EE6A5B; --p2:#E2B04A; --p3:#7F8B90; color-scheme:dark}
+  --p0:#EE6A5B; --p1:#B23A3A; --p2:#C9C9C9; --p3:#E6C84A; --p4:#EE9E55; --p5:#7D9BE0; --p6:#B88A5E; --p7:#7F8B90; --p8:#E8E8E8; --p9:#F2D45C; --p10:#D9534F; color-scheme:dark}
 
 *{box-sizing:border-box}
 body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.6;word-break:keep-all;overflow-wrap:break-word}
@@ -152,7 +152,9 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .progress{margin:0;font-family:var(--f-mono);font-size:12px;color:var(--muted)}
 .outcome{margin:0;font-family:var(--f-display);font-weight:800;font-size:28px;min-height:1.2em}
 .outcome.win{color:var(--accent)} .outcome.lose{color:var(--seal)}
-i.p0{background:var(--p0)} i.p1{background:var(--p1)} i.p2{background:var(--p2)} i.p3{background:var(--p3)}
+i.p0{background:var(--p0)} i.p1{background:var(--p1)} i.p2{background:var(--p2)} i.p3{background:var(--p3)} i.p4{background:var(--p4)} i.p5{background:var(--p5)} i.p6{background:var(--p6)} i.p7{background:var(--p7)} i.p8{background:var(--p8)} i.p9{background:var(--p9)} i.p10{background:var(--p10)}
+.charges{margin:0;padding-left:1.2em;display:grid;gap:4px;font-size:14px}
+.count .line{margin:0;font-size:14px;font-weight:700}
 .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:1px}
 .speed{display:flex;flex-wrap:wrap;border:2px solid var(--ink)}
 .speed button{background:transparent;color:var(--ink);border:0;padding:8px 14px;font-weight:500;font-size:14px}
@@ -231,9 +233,9 @@ footer p{margin:0 0 6px}
 <main class="wrap">
   <section class="hero">
     <div class="hero-l">
-      <p class="eyebrow">대한민국 정치 인생 시뮬레이터</p>
+      <p class="eyebrow">독일 정치 인생 시뮬레이터 · 1879–</p>
       <h1>5천만분의 1</h1>
-      <p class="lede">대통령은 5천만 명 가운데 한 명입니다. 대한민국 어딘가에서 한 아기로 태어나, 저절로 흐르는 시간 속에서 살아갑니다. 정당에 들어가고, 선거에 나가고, 수백 명의 다른 정치인과 같은 판에서 겨룹니다.</p>
+      <p class="lede">1890년 독일 제국의 인구는 약 5천만 명. 그 가운데 한 아기로 태어나 황제의 나라, 바이마르 공화국, 나치 독일, 전쟁과 그 뒤를 삽니다. 나라 전체의 역사는 바꿀 수 없습니다. 당신이 고를 수 있는 것은 그 안에서 어디에 서느냐입니다.</p>
       <div class="counter">
         <span class="c-label">나와 같은 조건으로 태어난 사람</span>
         <output class="c-num" id="count" aria-live="polite">51,217,221<small>명</small></output>
@@ -280,13 +282,13 @@ footer p{margin:0 0 6px}
 
   <section class="board after" aria-labelledby="boardTitle" hidden>
     <div class="panel">
-      <h2 id="boardTitle">국회 300석</h2>
+      <h2 id="boardTitle"><span id="houseTitle">의회</span></h2>
       <canvas id="house" aria-label="국회 의석 분포"></canvas>
       <div class="housekey" id="houseKey"></div>
-      <div class="pres" id="presBox"></div>
+      <div class="pres" id="eraBox"></div>
     </div>
     <div class="panel">
-      <h2>실시간 정치인 순위</h2>
+      <h2 id="rankTitle">실시간 정치인 순위</h2>
       <ol class="rank" id="rank"></ol>
       <p class="note" id="rankNote"></p>
     </div>
@@ -302,8 +304,8 @@ footer p{margin:0 0 6px}
   </section>
 
   <footer>
-    <p>출생 수, 출생지 비율, 성씨 비율, 기대수명은 통계청(KOSIS) 자료를, 시·도별 정치 성향은 최근 총선·대선의 양당 득표율을, 국회 의석 수(지역구 254·비례 46)와 지방선거 자리 수는 공직선거법을 바탕으로 반올림한 근사치입니다.</p>
-    <p>푸른당·붉은당·새길당은 가상의 정당이며, 다른 정치인의 이름은 모두 무작위로 만든 것이라 실제 인물과 관계없습니다. 다른 정치인은 컴퓨터가 움직입니다.</p>
+    <p>출생 수와 인구, 지역별 종교 비율, 부모 직업 분포는 독일 제국 통계를, 제국의회·연방의회 득표율과 의석은 실제 선거 결과를 바탕으로 반올림한 근사치입니다. 지역별 정당 지지는 가톨릭 비율·도시화·공업·동엘베 농촌 여부로 추정했습니다.</p>
+    <p>나라 전체의 역사는 실제대로 흘러갑니다. 함께 경쟁하는 정치인과 나의 이름은 무작위로 만든 가상 인물입니다. 실존 인물은 역사 기록으로만 등장합니다. 아기 사망률은 실제(다섯 명 중 한 명)의 절반으로 줄였습니다.</p>
   </footer>
 </main>
 
