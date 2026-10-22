@@ -204,17 +204,21 @@ function swing(){
 }
 const leanOf = r => REGION[r][1];
 
+// 실제 대선 날짜(월은 0부터). 태어난 해 다음의 첫 대선부터 정치판이 따로 굴러간다
+const PRES_DATES = [[1987,11],[1992,11],[1997,11],[2002,11],[2007,11],[2012,11],[2017,4],[2022,2],[2025,5],[2030,5]];
 function newWorld(){
-  W = {bots:[], news:[], seats:[171,108,15,6], third:.09, pres:null, nextPres:{y:2030, m:5}, approvalHist:[]};
-  // 대통령과 내각(2025년 조기 대선으로 들어선 가상 정부)
-  const pres = mkBot(61, 0, '경기도', 'president'); pres.fame = 92; pres.wins = 6;
+  const y0 = P.year, nd = PRES_DATES.find(([y,m]) => y>y0 || (y===y0 && m>P.month)) || [y0+5, 5];
+  const pp = rand()<.5 ? 0 : 1, a = ri(140,170);
+  W = {bots:[], news:[], seats: pp===0 ? [a, 285-a, 9, 6] : [285-a, a, 9, 6], third:.08, pres:null, nextPres:{y:nd[0], m:nd[1]}, approvalHist:[]};
+  // 가상의 대통령과 내각
+  const pres = mkBot(ri(50,60), pp, null, 'president'); pres.fame = 90; pres.wins = 6;
   W.bots.push(pres);
-  W.pres = {who:pres, party:0, approval:56, from:2025};
+  W.pres = {who:pres, party:pp, approval:clamp(normal(45,10),20,70), from:y0 - ri(0,3)};
   // 국회의원
-  const mpN = [44,28,4,2];
+  const mpN = pp===0 ? [40,32,4,2] : [32,40,4,2];
   mpN.forEach((n,p) => { for (let i=0;i<n;i++) W.bots.push(mkBot(ri(38,72), p, null, 'mp')); });
-  // 광역단체장(2022년 지방선거 무렵 판세)
-  for (const r of REGIONS){ const p = leanOf(r)-.06+normal(0,.03) > .5 ? 0 : 1; W.bots.push(mkBot(ri(50,70), p, r, 'gov')); }
+  // 광역단체장
+  for (const r of REGIONS){ const p = leanOf(r)+normal(0,.05) > .5 ? 0 : 1; W.bots.push(mkBot(ri(50,70), p, r, 'gov')); }
   // 기초단체장·지방의원·지망생
   for (let i=0;i<24;i++) W.bots.push(mkBot(ri(45,68), rand()<.5?0:1, null, 'mayor'));
   for (let i=0;i<20;i++) W.bots.push(mkBot(ri(35,62), wpick([[0,45],[1,45],[2,10]]).v, null, 'metro'));
@@ -242,21 +246,27 @@ function formCabinet(quiet){
 }
 
 // ── 태어나기 ─────────────────────────────────────
-function births(y){ return {2017:357800,2018:326800,2019:302700,2020:272300,2021:260600,2022:249200,2023:230000,2024:238300,2025:254500}[y] || 250000; }
+function births(y){
+  if (y<1960) return 900000; if (y<1972) return 1000000; if (y<1980) return 850000;
+  if (y<1984) return 800000; if (y<1991) return 650000; if (y<1997) return 710000;
+  if (y<2002) return 600000; return 450000;
+}
+const BORN_FROM = 1955, BORN_TO = 1995;   // 정치 인생의 한복판이 지금 무렵에 오도록
 const WEALTH = ['어려운 형편','넉넉지 않은 형편','보통 형편','여유 있는 집','부유한 집'];
 const TALK = ['말수가 적은 아이','수줍은 아이','보통 아이','말을 잘하는 아이','사람들 앞에 서면 빛나는 아이'];
 
 function newLife(){
   const rows = []; let prob = 1;
   const row = (label, value, p, note) => { rows.push({label, value, p, note}); prob *= p; };
-  const by = YEAR, bm = ri(0,11);
+  const yrs = []; for (let y=BORN_FROM; y<=BORN_TO; y++) yrs.push([y, births(y)]);
+  const by = wpick(yrs).v, bm = ri(0,11);
   P = {bot:false, alive:true, by, bm, year:by, month:bm, age:0, ver:0, log:[], pending:null, queue:[], shows:[], wins:0, losses:0,
        party:null, office:null, best:null, terms:{}, minister:null, pm:false, chair:false, chairEnd:0, termEnd:0, dirty:0, prison:0,
        retired:false, ex:null, careers:[], titles:[], peak:0, peakRank:null, flags:{}, edu:null, job:null, money:0, id:0};
   newWorld();
 
   const nb = births(by);
-  row('출생', `${by}년 ${bm+1}월`, nb/POP, `올해 태어나는 아기 약 ${nb.toLocaleString('ko-KR')}명`);
+  row('출생', `${by}년 ${bm+1}월`, nb/POP, `그해 태어난 아기 약 ${nb.toLocaleString('ko-KR')}명`);
   const sx = wpick([['M',.512],['F',.488]]); P.male = sx.v==='M';
   row('성별', P.male ? '남자' : '여자', sx.p);
   const rg = wpick(REGIONS.map(r=>[r, REGION[r][0]])); P.region = P.home = rg.v;
@@ -283,20 +293,30 @@ function newLife(){
 function step(){
   if (!P.alive || P.pending || P.shows.length) return false;
   P.month++;
-  if (P.month===12){ P.month = 0; P.year++; worldYear(); }
+  if (P.month===12){ P.month = 0; P.year++; P.cur = {year:P.year, age:P.age, lines:[]}; P.log.push(P.cur); P.ver++; worldYear(); }
   worldMonth();
-  if (P.month===P.bm){ P.age++; P.cur = {year:P.year, age:P.age, lines:[]}; P.log.push(P.cur); P.ver++; lifeYear(); }
+  if (P.month===P.bm){ P.age++; P.ver++; lifeYear(); }
   if (P.alive) calendar();
   const r = rank(); if (P.party!=null && (P.peakRank==null || r.me < P.peakRank)) P.peakRank = r.me;
   P.peak = Math.max(P.peak, power(P));
   return true;
 }
 
+// 세상의 큰일(정치인 이름이 들어가지 않는 것만)
+const WORLD = {
+  1970:'경부고속도로가 개통됐다', 1974:'서울 지하철 1호선이 개통됐다', 1983:'〈이산가족을 찾습니다〉 생방송에 온 나라가 울었다',
+  1986:'서울 아시안게임이 열렸다', 1988:'서울 올림픽이 열렸다', 1989:'해외여행이 전면 자유화됐다', 1993:'금융실명제가 시행됐다',
+  1995:'삼풍백화점이 무너졌다', 1997:'IMF 외환위기가 터졌다', 1998:'금 모으기 운동이 벌어졌다', 2002:'한일 월드컵 4강 신화가 쓰였다',
+  2004:'KTX가 개통됐다', 2008:'글로벌 금융위기가 왔다', 2009:'아이폰이 국내에 출시됐다', 2014:'세월호 참사가 일어났다',
+  2016:'알파고가 이세돌을 이겼다', 2018:'평창 동계올림픽이 열렸다', 2020:'코로나19가 대유행했다'
+};
+
 // 선거·전당대회 일정
 function calendar(){
   const y = P.year, m = P.month;
-  if (m===5 && (y-2026)%4===0) election('지선');
-  if (m===3 && (y-2028)%4===0) election('총선');
+  if (m===5 && (y===1995 || (y>=1998 && (y-2026)%4===0))) election('지선');
+  if (m===3 && y>=1988 && (y-2028)%4===0) election('총선');
+  if (m===0 && WORLD[y]) say(WORLD[y], null, 'world');
   if (y===W.nextPres.y && m===W.nextPres.m) election('대선');
   if (m===7 && y%2===0) convention();
 }
@@ -415,7 +435,7 @@ function schoolYear(a){
 const UNI = [[95,'서울 상위권 대학',{org:10, smart:3}],[78,'수도권 대학',{org:5}],[58,'지방 국립대',{org:4}],[42,'지방 사립대',{org:2}]];
 function college(){
   const u = UNI.find(x => P.exam >= x[0]);
-  if (P.male) say('입대해 18개월 동안 군 복무를 했다.', {hp:2, org:1});
+  if (P.male) say(`입대해 ${P.year<1994 ? 30 : P.year<2004 ? 26 : P.year<2018 ? 21 : 18}개월 동안 군 복무를 했다.`, {hp:2, org:1});
   if (!u){ P.edu = '고졸'; say('대학에 가지 않고 일을 시작했다.'); if (!P.job) career(); return; }
   P.edu = u[1];
   if (u[1]==='서울 상위권 대학' || (u[1]==='수도권 대학' && P.home!=='경기도' && P.home!=='인천광역시')){ if (P.home!=='서울특별시') say('대학 때문에 서울로 올라왔다.'); P.home = '서울특별시'; }
