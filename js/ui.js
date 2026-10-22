@@ -1,4 +1,4 @@
-// 5천만분의 1 — 화면
+// 어느 독일인의 생애 — 화면
 (() => {
 'use strict';
 const $ = id => document.getElementById(id);
@@ -48,12 +48,13 @@ function tween(from, to, ms, my){
   });
 }
 
-// ── 출생신고서 ───────────────────────────────────
+// ── 출생증명서 ───────────────────────────────────
 function renderSheet(hide){
   const p = P();
   $('name').textContent = p.name;
-  $('rrn').textContent = `${String(p.by).slice(2)}${String(p.bm+1).padStart(2,'0')}${String(1+Math.floor(Math.random()*28)).padStart(2,'0')}-${p.male?3:4}●●●●●●`;
-  $('docno').textContent = `접수번호 ${p.by}-${String(Math.floor(Math.random()*1e6)).padStart(6,'0')}`;
+  $('rrn').textContent = `${p.by}년 ${p.bm+1}월 ${1+Math.floor(Math.random()*28)}일생`;
+  $('docno').textContent = `Nr. ${1+Math.floor(Math.random()*2400)}/${p.by}`;
+  $('sealYr').textContent = p.by;
   $('rows').innerHTML = birth.rows.map(r => `<div class="row${hide?' wait':''}"><dt>${r.label}</dt><dd>${esc(r.value)}</dd><span class="p">${r.pick ? '직접 고름' : fmtP(r.p)}</span>${r.note?`<span class="note">${esc(r.note)}</span>`:''}</div>`).join('');
 }
 function renderVerdict(){
@@ -297,7 +298,7 @@ function bindSummary(){
   $('again').addEventListener('click', () => { window.scrollTo({top:0, behavior: reduce ? 'auto' : 'smooth'}); });
   $('copyLife').addEventListener('click', () => {
     const p = P();
-    const text = `[5천만분의 1] ${p.by}년 ${p.region} ${p.birthPlace}에서 태어난 ${p.name}. ${p.titles.length ? p.titles.join(' → ') : (p.careers.join(' → ')||'평범한 삶')}. ${p.year}년 ${p.cause}, 향년 ${p.age}세. "${lifeLine()}"`;
+    const text = `[어느 독일인의 생애] ${p.by}년 ${p.region} ${p.birthPlace}에서 태어난 ${p.name}. ${p.titles.length ? p.titles.join(' → ') : (p.careers.join(' → ')||'평범한 삶')}. ${p.year}년 ${p.cause}, 향년 ${p.age}세. "${lifeLine()}"`;
     const ok = () => $('toast').textContent = '요약을 복사했습니다.';
     const fail = () => $('toast').textContent = text;
     try { navigator.clipboard.writeText(text).then(ok, fail); } catch { fail(); }
