@@ -54,7 +54,7 @@ function renderSheet(hide){
   $('name').textContent = p.name;
   $('rrn').textContent = `${String(p.by).slice(2)}${String(p.bm+1).padStart(2,'0')}${String(1+Math.floor(Math.random()*28)).padStart(2,'0')}-${p.male?3:4}●●●●●●`;
   $('docno').textContent = `접수번호 ${p.by}-${String(Math.floor(Math.random()*1e6)).padStart(6,'0')}`;
-  $('rows').innerHTML = birth.rows.map(r => `<div class="row${hide?' wait':''}"><dt>${r.label}</dt><dd>${esc(r.value)}</dd><span class="p">${fmtP(r.p)}</span>${r.note?`<span class="note">${esc(r.note)}</span>`:''}</div>`).join('');
+  $('rows').innerHTML = birth.rows.map(r => `<div class="row${hide?' wait':''}"><dt>${r.label}</dt><dd>${esc(r.value)}</dd><span class="p">${r.pick ? '직접 고름' : fmtP(r.p)}</span>${r.note?`<span class="note">${esc(r.note)}</span>`:''}</div>`).join('');
 }
 function renderVerdict(){
   const e = birth.expected, one = korNum(1/birth.prob);
@@ -79,15 +79,14 @@ function stageLabel(){
   if (p.job && p.age<65) return p.job;
   return p.age>=65 ? '은퇴' : '취업 준비 중';
 }
-const STATS = [['건강','hp'],['능력','smart'],['말솜씨','talk'],['인지도','fame'],['평판','rep'],['조직력','org']];
+const STATS = [['건강','hp'],['능력','smart'],['말솜씨','talk'],['친화력','charm'],['인지도','fame'],['평판','rep'],['조직력','org']];
 function renderStatus(){
   const p = P(), w = W();
   $('sAge').innerHTML = `${p.age}<small>세</small>`;
   $('sYear').textContent = `${p.year}년 ${p.month+1}월`;
   const chips = [`<span class="chip main">${esc(stageLabel())}</span>`];
   if (p.party!=null) chips.push(`<span class="chip"><i class="dot p${p.party}"></i>${esc(E.pname(p.party))}</span>`);
-  if (p.party!=null && p.dist) chips.push(`<span class="chip">${esc(E.short(p.home))} ${esc(p.dist)}</span>`);
-  else if (p.age>=19) chips.push(`<span class="chip">${esc(E.short(p.home))}</span>`);
+  chips.push(`<span class="chip">${esc(E.short(p.home))} ${esc(p.dist)}</span>`);
   if (p.edu && p.age>=19) chips.push(`<span class="chip">${esc(p.edu)}${p.major?` · ${esc(p.major)}`:''}</span>`);
   if (p.retired) chips.push('<span class="chip">정계 은퇴</span>');
   $('sChips').innerHTML = chips.join('');
@@ -258,7 +257,7 @@ function summaryHTML(){
     <div class="acts"><button type="button" id="again">다시 태어나기</button><button type="button" class="ghost" id="copyLife">요약 복사</button></div></div>`;
 }
 function bindSummary(){
-  $('again').addEventListener('click', () => born(true));
+  $('again').addEventListener('click', () => { window.scrollTo({top:0, behavior: reduce ? 'auto' : 'smooth'}); });
   $('copyLife').addEventListener('click', () => {
     const p = P();
     const text = `[5천만분의 1] ${p.by}년 ${p.region}에서 태어난 ${p.name}. ${p.titles.length ? p.titles.join(' → ') : (p.careers.join(' → ')||'평범한 삶')}. 당선 ${p.wins}번, 낙선 ${p.losses}번. ${p.age}세에 세상을 떠났다. "${lifeLine()}"`;
@@ -285,10 +284,31 @@ function renderHist(){
     : '<li><span class="empty">아직 끝난 인생이 없습니다. 끝까지 살면 여기에 남습니다.</span><span></span></li>';
 }
 
+// ── 타고난 기질 고르기 ───────────────────────────
+let alloc = {hp:5, smart:5, talk:5, charm:5};
+try { const a = JSON.parse(localStorage.getItem('5000in1-alloc')); if (a && E.TRAITS.every(([k]) => a[k]>=0 && a[k]<=10) && E.TRAITS.reduce((s,[k])=>s+a[k],0)===E.TRAIT_SUM) alloc = a; } catch {}
+const HINT = {hp:'오래 버티고 선거 강행군을 견딘다', smart:'수능·고시·법안에 유리하다', talk:'선거·토론·방송에서 빛난다', charm:'사람을 모아 조직을 키운다'};
+function renderAlloc(){
+  const left = E.TRAIT_SUM - E.TRAITS.reduce((s,[k])=>s+alloc[k],0);
+  $('alloc').innerHTML = `<p class="al-head"><span>타고난 기질</span><span>남은 점수 <b>${left}</b></span></p>` + E.TRAITS.map(([k,l]) => `
+    <div class="al-row"><span class="al-l">${l}<small>${HINT[k]}</small></span>
+      <button type="button" class="al-b" data-k="${k}" data-d="-1" aria-label="${l} 낮추기"${alloc[k]<=0?' disabled':''}>−</button>
+      <span class="al-pips" aria-label="${l} ${alloc[k]}점">${Array.from({length:10},(_,i)=>`<i${i<alloc[k]?' class="on"':''}></i>`).join('')}</span>
+      <button type="button" class="al-b" data-k="${k}" data-d="1" aria-label="${l} 올리기"${alloc[k]>=10||left<=0?' disabled':''}>+</button></div>`).join('');
+  $('alloc').querySelectorAll('.al-b').forEach(b => b.addEventListener('click', () => {
+    alloc[b.dataset.k] += +b.dataset.d; renderAlloc();
+    try { localStorage.setItem('5000in1-alloc', JSON.stringify(alloc)); } catch {}
+  }));
+  $('roll').disabled = busy || left!==0;
+  $('roll').textContent = left ? `점수 ${left}점을 더 나눠 주세요` : P() ? '다시 태어나기' : '태어나기';
+}
+
 // ── 태어나기 ─────────────────────────────────────
 async function born(animate){
+  if (E.TRAIT_SUM !== E.TRAITS.reduce((s,[k])=>s+alloc[k],0)){ document.getElementById('alloc').scrollIntoView({behavior:'smooth', block:'center'}); return; }
+  document.querySelectorAll('.after').forEach(e => e.hidden = false);
   const my = ++token; busy = animate && !reduce; acc = 0; showFor = null; prevRank = new Map();
-  birth = E.newLife();
+  birth = E.newLife({...alloc});
   renderSheet(busy); render(); renderBoard();
   const seal = $('seal'); seal.className = 'seal off'; $('verdict').innerHTML = ''; $('toast').textContent = '';
   let n = POP; setCount(n);
@@ -300,11 +320,10 @@ async function born(animate){
       els[i].classList.remove('wait'); els[i].classList.add('flash');
       const next = n*birth.rows[i].p; await tween(n, next, 380, my); await sleep(80); n = next;
     }
-    $('roll').disabled = false;
   }
   setCount(birth.expected); renderVerdict();
   seal.className = busy ? 'seal stamp' : 'seal';
-  busy = false; renderControls();
+  busy = false; renderControls(); renderAlloc();
 }
 
 document.querySelectorAll('#speed button').forEach(b => b.addEventListener('click', () => {
@@ -312,11 +331,11 @@ document.querySelectorAll('#speed button').forEach(b => b.addEventListener('clic
   try { localStorage.setItem('5000in1-speed', speed); } catch {}
 }));
 $('roll').addEventListener('click', () => born(true));
-$('reborn').addEventListener('click', () => born(true));
-addEventListener('resize', () => renderBoard());
-matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => renderBoard());
+$('reborn').addEventListener('click', () => { window.scrollTo({top:0, behavior: reduce ? 'auto' : 'smooth'}); });
+addEventListener('resize', () => { if (P()) renderBoard(); });
+matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => { if (P()) renderBoard(); });
 
 renderHist();
-born(false);
+renderAlloc();
 requestAnimationFrame(loop);
 })();

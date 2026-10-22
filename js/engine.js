@@ -20,6 +20,7 @@ const clamp = (x,a,b) => Math.max(a, Math.min(b, x));
 const sig = x => 1/(1+Math.exp(-x));
 function normal(m, s){ let u=0, v=0; while(!u) u=rand(); while(!v) v=rand(); return m + s*Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v); }
 function jong(w){ const c=String(w).charCodeAt(String(w).length-1)-0xAC00; return c<0||c>11171 ? -1 : c%28; }
+const J = (w, a, b) => w + (jong(w)>0 ? a : b);
 const eu = w => { const j=jong(w); return j>0 && j!==8 ? '으로' : '로'; };
 function won(n){
   const s = n<0 ? '−' : ''; n = Math.abs(Math.round(n));
@@ -51,6 +52,37 @@ const REGION = {
   '제주특별자치도':[1.3,.57,3,'제주',['제주시','서귀포시']]
 };
 const REGIONS = Object.keys(REGION);
+// 시·군·구와 인구(만 명, 2024년 무렵 반올림)
+const SGG_RAW = {
+  '서울특별시':'종로구 14,중구 12,용산구 21,성동구 28,광진구 34,동대문구 34,중랑구 38,성북구 43,강북구 29,도봉구 30,노원구 50,은평구 46,서대문구 31,마포구 37,양천구 44,강서구 56,구로구 40,금천구 23,영등포구 37,동작구 38,관악구 49,서초구 41,강남구 56,송파구 66,강동구 47',
+  '부산광역시':'중구 4,서구 10,동구 9,영도구 11,부산진구 36,동래구 27,남구 25,북구 27,해운대구 38,사하구 30,금정구 21,강서구 14,연제구 21,수영구 17,사상구 20,기장군 18',
+  '대구광역시':'중구 9,동구 34,서구 16,남구 14,북구 42,수성구 41,달서구 52,달성군 26,군위군 2',
+  '인천광역시':'중구 16,동구 6,미추홀구 41,연수구 39,남동구 49,부평구 48,계양구 28,서구 63,강화군 7,옹진군 2',
+  '광주광역시':'동구 10,서구 28,남구 21,북구 42,광산구 39',
+  '대전광역시':'동구 22,중구 22,서구 46,유성구 37,대덕구 17',
+  '울산광역시':'중구 21,남구 31,동구 15,북구 22,울주군 22',
+  '세종특별자치시':'세종시 39',
+  '경기도':'수원시 119,성남시 91,의정부시 46,안양시 54,부천시 77,광명시 28,평택시 59,동두천시 9,안산시 63,고양시 107,과천시 8,구리시 19,남양주시 73,오산시 23,시흥시 52,군포시 26,의왕시 16,하남시 33,용인시 108,파주시 51,이천시 22,안성시 19,김포시 49,화성시 97,광주시 39,양주시 25,포천시 14,여주시 11,연천군 4,가평군 6,양평군 12',
+  '강원특별자치도':'춘천시 29,원주시 36,강릉시 21,동해시 9,태백시 4,속초시 8,삼척시 6,홍천군 7,횡성군 5,영월군 4,평창군 4,정선군 3,철원군 4,화천군 2,양구군 2,인제군 3,고성군 3,양양군 3',
+  '충청북도':'청주시 85,충주시 21,제천시 13,보은군 3,옥천군 5,영동군 4,증평군 4,진천군 9,괴산군 4,음성군 9,단양군 3',
+  '충청남도':'천안시 66,공주시 10,보령시 10,아산시 34,서산시 18,논산시 11,계룡시 4,당진시 17,금산군 5,부여군 6,서천군 5,청양군 3,홍성군 10,예산군 8,태안군 6',
+  '전북특별자치도':'전주시 64,군산시 26,익산시 27,정읍시 10,남원시 8,김제시 8,완주군 9,진안군 2,무주군 2,장수군 2,임실군 3,순창군 3,고창군 5,부안군 5',
+  '전라남도':'목포시 21,여수시 27,순천시 28,나주시 12,광양시 15,담양군 5,곡성군 3,구례군 2,고흥군 6,보성군 4,화순군 6,장흥군 4,강진군 3,해남군 7,영암군 5,무안군 9,함평군 3,영광군 5,장성군 4,완도군 5,진도군 3,신안군 4',
+  '경상북도':'포항시 49,경주시 25,김천시 14,안동시 15,구미시 41,영주시 10,영천시 10,상주시 9,문경시 7,경산시 27,의성군 5,청송군 2,영양군 2,영덕군 3,청도군 4,고령군 3,성주군 4,칠곡군 11,예천군 5,봉화군 3,울진군 5,울릉군 1',
+  '경상남도':'창원시 100,진주시 34,통영시 12,사천시 11,김해시 53,밀양시 10,거제시 23,양산시 35,의령군 3,함안군 6,창녕군 6,고성군 5,남해군 4,하동군 4,산청군 3,함양군 4,거창군 6,합천군 4',
+  '제주특별자치도':'제주시 49,서귀포시 18'
+};
+const SGG = {}, SGG_ALL = [];
+for (const r of REGIONS){ SGG[r] = SGG_RAW[r].split(',').map(x => { const [n,v] = x.split(' '); return [n, +v]; }); SGG[r].forEach(([n,v]) => SGG_ALL.push([[r,n], v])); }
+const SGG_TOTAL = SGG_ALL.reduce((s,x)=>s+x[1],0);
+const distPick = r => wpick(SGG[r]).v;
+// 시·도 평균에서 벗어나는 곳. 호남 밖의 군 지역은 조금 더 보수적이다
+const DIST_LEAN = {'서울특별시 강남구':-.13,'서울특별시 서초구':-.13,'서울특별시 송파구':-.06,'서울특별시 용산구':-.06,'서울특별시 관악구':.06,'서울특별시 금천구':.05,'서울특별시 강북구':.04,
+  '경기도 성남시':.02,'경기도 시흥시':.04,'경기도 화성시':.03,'부산광역시 강서구':.03,'부산광역시 북구':.02,'대구광역시 달서구':.02,'경상남도 김해시':.06,'경상남도 양산시':.03,'울산광역시 북구':.05,'울산광역시 동구':.05};
+function distLean(r, d){
+  const rural = d.endsWith('군') && !/전라|전북/.test(r) ? -.05 : 0;
+  return clamp(REGION[r][1] + rural + (DIST_LEAN[`${r} ${d}`] || 0), .1, .92);
+}
 const short = r => REGION[r][3];
 const isCity = r => /특별시|광역시|특별자치시/.test(r);
 const govTitle = r => `${short(r)}${isCity(r) ? '시장' : '지사'}`;
@@ -105,7 +137,7 @@ function deathCause(d){
 
 // ── 상태 ─────────────────────────────────────────
 let P = null, W = null, nextId = 1;
-const LBL = {hp:'건강', smart:'능력', talk:'말솜씨', fame:'인지도', rep:'평판', org:'조직력'};
+const LBL = {hp:'건강', smart:'능력', talk:'말솜씨', charm:'친화력', fame:'인지도', rep:'평판', org:'조직력'};
 
 function fx(eff){
   const parts = [];
@@ -174,7 +206,7 @@ function fameTarget(x){
 }
 function orgTarget(x){
   const job = x.job ? ({'시민단체 활동가':45, '노동조합 간부':50, '자영업자':35, '국회 보좌진':40, '창업가':35}[x.job] || 25) : 20;
-  return Math.max(job, 30 + Math.min(55, (power(x) - x.fame*1.5)/8));
+  return Math.max(job, 30 + Math.min(55, (power(x) - x.fame*1.5)/8)) + (x.charm!=null ? (x.charm-50)*.3 : 0);
 }
 function setBest(x, o){ if (!x.best || OFF[o].pw > OFF[x.best].pw) x.best = o; }
 function exTitle(x){ return x.best ? `전 ${x.best==='gov' ? govTitle(x.home||x.region) : OFF[x.best].n}` : null; }
@@ -183,7 +215,7 @@ function exTitle(x){ return x.best ? `전 ${x.best==='gov' ? govTitle(x.home||x.
 function mkBot(age, party, region, office){
   const male = rand() < .78, by = P.year - age;
   region = region || wpick(REGIONS.map(r=>[r, REGION[r][0]])).v;
-  const b = {id:nextId++, bot:true, name:mkName(by, male), male, by, party, region, home:region, dist:rnd(REGION[region][4]),
+  const b = {id:nextId++, bot:true, name:mkName(by, male), male, by, party, region, home:region, dist:distPick(region),
     office:office||null, fame:clamp(normal(office ? 18+OFF[office].pw/10 : 15, 8), 3, 95), rep:clamp(normal(55,15),5,95),
     org:clamp(normal(30+(office ? Math.min(50, OFF[office].pw/6) : 0), 10), 5, 95), talk:clamp(normal(55,12), 5, 95),
     wins:office ? ri(1,3) : 0, best:office||null, terms:{}, alive:true, retired:false, chair:false, minister:null, pm:false};
@@ -253,9 +285,39 @@ function births(y){
 }
 const BORN_FROM = 1955, BORN_TO = 1995;   // 정치 인생의 한복판이 지금 무렵에 오도록
 const WEALTH = ['어려운 형편','넉넉지 않은 형편','보통 형편','여유 있는 집','부유한 집'];
-const TALK = ['말수가 적은 아이','수줍은 아이','보통 아이','말을 잘하는 아이','사람들 앞에 서면 빛나는 아이'];
 
-function newLife(){
+// 부모 직업: 연 소득(만 원, 지금 돈 가치)과 아이에게 주는 것
+const PJOB = {
+  '농부':{inc:2200, d:{org:2}}, '어부':{inc:2800, d:{org:2}}, '공장 생산직':{inc:4200}, '건설 노동자':{inc:3800}, '운전기사':{inc:3600},
+  '작은 가게 사장':{inc:4000, d:{org:2}}, '식당 사장':{inc:4500, d:{org:2}}, '중소기업 회사원':{inc:4200}, '대기업 회사원':{inc:8000},
+  '공무원':{inc:5200}, '교사':{inc:5600, d:{smart:3}}, '경찰관':{inc:5400}, '직업군인':{inc:5200}, '은행원':{inc:8000},
+  'IT 개발자':{inc:7000, d:{smart:2}}, '의사':{inc:20000, d:{smart:3}}, '변호사':{inc:15000, d:{smart:2, org:3}}, '교수':{inc:11000, d:{smart:4}},
+  '회사 임원':{inc:18000, d:{org:3}}, '사업가':{inc:14000, d:{org:4}}, '간호사':{inc:5200}, '판매직':{inc:2800}, '서비스직':{inc:2700},
+  '미용사':{inc:3000}, '일용직':{inc:2200}, '보험설계사':{inc:3800, d:{org:2}}, '기자':{inc:6000, d:{talk:2}}, '목사':{inc:3500, d:{talk:3, org:3}},
+  '정치인':{inc:9000, d:{org:12, talk:2}}, '무직':{inc:0}, '전업주부':{inc:0}
+};
+const ERA = y => y<1970 ? 0 : y<1985 ? 1 : 2;
+const FJOBS = [
+  [['농부',35],['어부',4],['공장 생산직',12],['건설 노동자',9],['작은 가게 사장',10],['운전기사',5],['공무원',5],['교사',3],['중소기업 회사원',7],['일용직',6],['직업군인',2],['경찰관',1],['의사',.5],['사업가',1],['은행원',1],['목사',.5],['정치인',.1],['무직',2]],
+  [['농부',12],['공장 생산직',16],['건설 노동자',8],['작은 가게 사장',12],['식당 사장',4],['운전기사',6],['중소기업 회사원',14],['대기업 회사원',7],['공무원',6],['교사',3],['은행원',2],['경찰관',1.5],['직업군인',1.5],['의사',.8],['교수',.5],['기자',.4],['사업가',1.5],['목사',.5],['정치인',.15],['일용직',4],['무직',2]],
+  [['농부',3],['공장 생산직',15],['건설 노동자',7],['작은 가게 사장',9],['식당 사장',4],['운전기사',5],['중소기업 회사원',20],['대기업 회사원',10],['공무원',7],['교사',3],['은행원',2],['IT 개발자',3],['경찰관',1.5],['직업군인',1.5],['의사',1],['변호사',.3],['교수',.5],['기자',.5],['회사 임원',.8],['사업가',2],['서비스직',3],['판매직',2],['보험설계사',1],['목사',.5],['정치인',.2],['일용직',2],['무직',3]]
+];
+const MJOBS = [
+  [['전업주부',55],['농부',30],['작은 가게 사장',5],['공장 생산직',5],['교사',1],['판매직',2],['서비스직',2]],
+  [['전업주부',60],['농부',6],['작은 가게 사장',6],['공장 생산직',7],['판매직',5],['서비스직',5],['교사',3],['간호사',2],['중소기업 회사원',4],['미용사',2]],
+  [['전업주부',48],['중소기업 회사원',12],['판매직',5],['서비스직',6],['교사',5],['간호사',4],['공무원',4],['대기업 회사원',3],['작은 가게 사장',4],['미용사',2],['보험설계사',2],['IT 개발자',1],['의사',.6],['공장 생산직',3],['정치인',.03]]
+];
+// 부모 벌이에 따라 형편이 정해진다
+function wealthOf(inc){
+  return wpick(inc<3000 ? [[0,40],[1,38],[2,20],[3,2],[4,0]] : inc<5000 ? [[0,14],[1,32],[2,43],[3,10],[4,1]] : inc<8000 ? [[0,5],[1,18],[2,50],[3,23],[4,4]]
+    : inc<13000 ? [[0,2],[1,8],[2,38],[3,40],[4,12]] : [[0,1],[1,3],[2,20],[3,40],[4,36]]);
+}
+// 타고난 기질: 20점을 네 가지에 나눠 준다(0~10)
+const TRAITS = [['hp','체력'],['smart','머리'],['talk','말솜씨'],['charm','친화력']];
+const TRAIT_SUM = 20;
+
+function newLife(alloc){
+  alloc = alloc || {hp:5, smart:5, talk:5, charm:5};
   const rows = []; let prob = 1;
   const row = (label, value, p, note) => { rows.push({label, value, p, note}); prob *= p; };
   const yrs = []; for (let y=BORN_FROM; y<=BORN_TO; y++) yrs.push([y, births(y)]);
@@ -269,23 +331,39 @@ function newLife(){
   row('출생', `${by}년 ${bm+1}월`, nb/POP, `그해 태어난 아기 약 ${nb.toLocaleString('ko-KR')}명`);
   const sx = wpick([['M',.512],['F',.488]]); P.male = sx.v==='M';
   row('성별', P.male ? '남자' : '여자', sx.p);
-  const rg = wpick(REGIONS.map(r=>[r, REGION[r][0]])); P.region = P.home = rg.v;
-  row('출생지', rg.v, rg.p, `이 지역 진보 쪽 득표 비율 약 ${Math.round(leanOf(rg.v)*100)}%`);
-  const wl = wpick([[0,15],[1,25],[2,35],[3,20],[4,5]]); P.wealth = wl.v;
-  row('집안 형편', WEALTH[wl.v], wl.p);
-  const lean = leanOf(rg.v);
-  const pl = wpick([['진보 쪽',.62*lean],['보수 쪽',.62*(1-lean)],['정치에 관심 없음',.38]]); P.parentsLean = pl.v;
-  row('부모님 정치 성향', pl.v, pl.p);
-  const tk = ri(0,4); P.talk = clamp(Math.round(normal([28,40,50,60,72][tk],4)),5,95);
-  row('타고난 기질', TALK[tk], .2);
+  const bp = wpick(SGG_ALL); const [r, d] = bp.v;
+  P.region = P.home = r; P.dist = P.birthDist = d; P.distLean = distLean(r, d);
+  row('출생지', `${r} ${d}`, bp.p, `인구 약 ${SGG[r].find(x=>x[0]===d)[1]}만 명 · 진보 쪽 득표 비율 약 ${Math.round(P.distLean*100)}%`);
+
+  // 부모
+  const fam = wpick([['아버지·어머니',91.5],['어머니만',6],['아버지만',1.5],['할머니·할아버지',1]]);
+  P.fa = /아버지/.test(fam.v) ? wpick(FJOBS[ERA(by)]) : null;
+  P.mo = /어머니/.test(fam.v) ? wpick(MJOBS[ERA(by)]) : null;
+  row('부모', fam.v==='아버지·어머니' ? '두 분 다 계심' : fam.v==='할머니·할아버지' ? '조부모 손에서 자람' : `${fam.v} 계심`, fam.p, fam.v==='어머니만' ? '한부모 가정' : fam.v==='아버지만' ? '한부모 가정' : null);
+  if (P.fa) row('아버지 직업', P.fa.v, P.fa.p);
+  if (P.mo) row('어머니 직업', P.mo.v, P.mo.p);
+  const inc = (P.fa ? PJOB[P.fa.v].inc : 0) + (P.mo ? PJOB[P.mo.v].inc : 0) + (!P.fa && !P.mo ? 2000 : 0);
+  const wl = wealthOf(inc); P.wealth = wl.v;
+  row('집안 형편', WEALTH[wl.v], wl.p, `부모 벌이 한 해 약 ${won(inc)}`);
+  P.famInc = inc;
+
+  // 타고난 기질(직접 고른 것)
+  const pt = k => clamp(Math.round(alloc[k]||0), 0, 10);
+  P.alloc = {hp:pt('hp'), smart:pt('smart'), talk:pt('talk'), charm:pt('charm')};
+  rows.push({label:'타고난 기질', value: TRAITS.map(([k,l]) => `${l} ${P.alloc[k]}`).join(' · '), p:1, pick:true});
   const sn = wpick(SURNAME); P.name = sn.v + givenName(by, P.male);
   row('이름', P.name, sn.p, `${sn.v}씨는 인구의 약 ${(sn.p*100).toFixed(1)}%`);
 
-  P.hp = clamp(Math.round(normal(82,8)),40,100);
-  P.smart = clamp(Math.round(normal(50,15)),5,95);
-  P.fame = 0; P.rep = 60; P.org = clamp(Math.round(normal(10+P.wealth*3,4)),0,40);
+  P.hp = clamp(Math.round(60 + P.alloc.hp*4 + normal(0,3)), 30, 100);
+  P.smart = clamp(Math.round(25 + P.alloc.smart*5 + normal(0,4)), 5, 95);
+  P.talk = clamp(Math.round(25 + P.alloc.talk*5 + normal(0,4)), 5, 95);
+  P.charm = clamp(Math.round(25 + P.alloc.charm*5 + normal(0,4)), 5, 95);
+  P.fame = 0; P.rep = 60; P.org = clamp(Math.round(P.charm*.2 + P.wealth*2 + normal(0,3)), 0, 40);
+  for (const j of [P.fa, P.mo]) if (j && PJOB[j.v].d) for (const k in PJOB[j.v].d) P[k] = clamp(P[k] + PJOB[j.v].d[k], 0, 100);
+  if ((P.fa && P.fa.v==='정치인') || (P.mo && P.mo.v==='정치인')) P.flags.polFamily = true;
   P.cur = {year:by, age:0, lines:[]}; P.log.push(P.cur);
-  say(`${P.region}에서 ${WEALTH[P.wealth]}의 ${P.male?'아들':'딸'}로 태어났다.`);
+  const par = [P.fa && `아버지는 ${P.fa.v}`, P.mo && `어머니는 ${P.mo.v}`].filter(Boolean).join(', ');
+  say(`${short(r)} ${d}에서 ${WEALTH[P.wealth]}의 ${P.male?'아들':'딸'}로 태어났다. ${par ? `${par}.` : '할머니·할아버지 손에서 자랐다.'}`);
   return {rows, prob, expected: POP*prob};
 }
 
@@ -420,7 +498,7 @@ function schoolYear(a){
   P.smart = clamp(P.smart + normal(.3,1.5), 0, 100);
   P.talk = clamp(P.talk + normal(.2,1.2), 0, 100);
   if (a>=9 && a<=17 && rand() < .14 + (P.talk-50)/200){
-    const w = rand() < sig((P.talk-50)/12);
+    const w = rand() < sig((P.talk+P.charm-100)/16);
     say(w ? '반장 선거에 나가 당선됐다. 첫 선거였다.' : '반장 선거에 나갔다가 떨어졌다.', w ? {talk:2, org:2} : {talk:1});
     if (w) P.flags.class = (P.flags.class||0)+1;
   }
@@ -438,7 +516,7 @@ function college(){
   if (P.male) say(`입대해 ${P.year<1994 ? 30 : P.year<2004 ? 26 : P.year<2018 ? 21 : 18}개월 동안 군 복무를 했다.`, {hp:2, org:1});
   if (!u){ P.edu = '고졸'; say('대학에 가지 않고 일을 시작했다.'); if (!P.job) career(); return; }
   P.edu = u[1];
-  if (u[1]==='서울 상위권 대학' || (u[1]==='수도권 대학' && P.home!=='경기도' && P.home!=='인천광역시')){ if (P.home!=='서울특별시') say('대학 때문에 서울로 올라왔다.'); P.home = '서울특별시'; }
+  if (u[1]==='서울 상위권 대학' || (u[1]==='수도권 대학' && P.home!=='경기도' && P.home!=='인천광역시')){ if (P.home!=='서울특별시'){ say('대학 때문에 서울로 올라왔다.'); P.home = '서울특별시'; P.dist = distPick(P.home); P.distLean = distLean(P.home, P.dist); } }
   say(`${u[1]}에 입학했다.`, u[2]);
   const majors = [['법학','법조인 길이 열린다', {smart:2}],['정치외교학','정치에 대한 감이 생긴다', {org:2, fame:1}],['경제학','숫자에 밝아진다', {smart:2}],['사회학','사람을 만나는 일이 많다', {org:3}],['공학','먹고살 길은 확실하다', {money:0}]];
   ask({title:'전공 선택', desc:`${u[1]}에서 무엇을 공부할까?`, options: majors.map(([m,sub,e]) => ({label:m, sub, go:() => {
@@ -484,18 +562,16 @@ function joinParty(){
   P.flags.partyAsked = true;
   const r = P.home, l = leanOf(r);
   const hint = p => p===0 ? `이 지역 지지 ${Math.round(l*100)}%` : p===1 ? `이 지역 지지 ${Math.round((1-l)*100)}%` : `전국 지지 ${Math.round(W.third*100)}%`;
-  const lean = P.parentsLean==='진보 쪽' ? 0 : P.parentsLean==='보수 쪽' ? 1 : null;
-  ask({title:'입당', desc:`${P.job==='국회 보좌진' ? '정치판에서 일하려면 당적이 필요하다.' : '정당에서 입당 권유가 왔다.'}${lean!=null ? ` 부모님은 ${pname(lean)} 쪽이다.` : ''}`, options:[
+  const l2 = P.distLean;
+  ask({title:'입당', desc:`${P.job==='국회 보좌진' ? '정치판에서 일하려면 당적이 필요하다.' : '정당에서 입당 권유가 왔다.'} 활동 지역 ${short(r)} ${P.dist}의 진보 쪽 득표 비율은 약 ${Math.round(l2*100)}%.${P.flags.polFamily ? ' 정치인 부모의 인맥이 기다리고 있다.' : ''}`, options:[
     ...[0,1,2].map(p => ({label:pname(p), sub:`${PARTY[p].side} · ${hint(p)}`, go:()=>enter(p)})),
     {label:'무소속으로 뛴다', sub:'정당 없이 선거에 나간다', go:()=>enter(IND)},
     {label:'정치는 관심 없다', sub:'평범하게 산다', go:()=>say('정치와는 거리를 두기로 했다.')}
   ]});
 }
 function enter(p){
-  P.party = p; P.dist = P.dist || rnd(REGION[P.home][4]);
-  P.distLean = clamp(leanOf(P.home) + normal(0,.05), .1, .92);
-  P.region = P.home;
-  say(p===IND ? `${P.home} ${P.dist}에서 무소속 정치인으로 활동을 시작했다.` : `${pname(p)}에 입당했다. 활동 지역은 ${short(P.home)} ${P.dist}.`, {org:3, fame:2});
+  P.party = p; P.region = P.home;
+  say(p===IND ? `${short(P.home)} ${P.dist}에서 무소속 정치인으로 활동을 시작했다.` : `${pname(p)}에 입당했다. 활동 지역은 ${short(P.home)} ${P.dist}.`, P.flags.polFamily ? {org:8, fame:6} : {org:3, fame:2});
 }
 
 function civilianYear(a){
@@ -604,7 +680,7 @@ function family(a){
   if (!P.married && a>=27 && a<=45 && rand()<.12){ P.married = true; say('결혼했다.', {hp:1}); }
   if (P.married && !P.kids && a<=42 && rand()<.15){ P.kids = 1; say('아이가 태어났다.'); }
   else if (P.kids===1 && a<=44 && rand()<.07){ P.kids = 2; say('둘째가 태어났다.'); }
-  if (a===55+ri(0,20) && !P.flags.parents){ P.flags.parents = true; say('부모님이 세상을 떠나셨다.', {money: [0,0,3000,15000,80000][P.wealth]}); }
+  if ((P.fa || P.mo) && a===55+ri(0,20) && !P.flags.parents){ P.flags.parents = true; say('부모님이 세상을 떠나셨다.', {money: [0,0,3000,15000,80000][P.wealth]}); }
 }
 
 function death(a){
@@ -900,6 +976,6 @@ function rank(){
   return {list, me: me<0 ? null : me+1, total:list.length};
 }
 
-const E = {newLife, step, choose, ack, title, power, rank, won, pct, pname, short, govTitle, OFF, PARTY, REGION, IND, gompQ,
+const E = {TRAITS, TRAIT_SUM, newLife, step, choose, ack, title, power, rank, won, pct, pname, short, govTitle, OFF, PARTY, REGION, IND, gompQ,
   get P(){ return P; }, get W(){ return W; }, setRand: f => { rand = f; }, canRun};
 if (typeof module !== 'undefined') module.exports = E;

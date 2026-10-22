@@ -189,6 +189,19 @@ i.p0{background:var(--p0)} i.p1{background:var(--p1)} i.p2{background:var(--p2)}
 .news li span{font-family:var(--f-mono);font-size:11px;color:var(--muted);margin-right:8px}
 .news li.big{font-weight:700}
 
+/* 타고난 기질 */
+.alloc{display:grid;gap:8px;border-top:1px solid var(--rule);padding-top:12px}
+.al-head{display:flex;justify-content:space-between;margin:0;font-size:13px;color:var(--muted)}
+.al-head b{font-family:var(--f-mono);color:var(--seal);font-size:15px}
+.al-row{display:grid;grid-template-columns:minmax(0,1fr) 34px auto 34px;gap:8px;align-items:center}
+.al-l{font-weight:700;font-size:14px;min-width:0}
+.al-l small{display:block;font-weight:400;font-size:12px;color:var(--muted)}
+.al-b{padding:0;width:34px;height:34px;font-size:18px;line-height:1;background:transparent;color:var(--ink);border:1px solid var(--ink)}
+.al-pips{display:flex;gap:3px}
+.al-pips i{width:9px;height:16px;background:var(--rule)}
+.al-pips i.on{background:var(--accent)}
+[hidden]{display:none!important}
+
 .hist{display:grid;gap:12px}
 .hist ol{list-style:none;margin:0;padding:0;display:grid}
 .hist li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;padding-block:8px;border-bottom:1px solid var(--rule);font-size:14px}
@@ -227,7 +240,8 @@ footer p{margin:0 0 6px}
         <div class="meter" aria-hidden="true"><i id="meter" style="width:100%"></i></div>
         <div class="scale" aria-hidden="true"><span>0.01명</span><span>1명</span><span>5천만 명</span></div>
       </div>
-      <div><button id="roll" type="button">다시 태어나기</button></div>
+      <div class="alloc" id="alloc" role="group" aria-label="타고난 기질 점수 나누기"></div>
+      <div><button id="roll" type="button">태어나기</button></div>
     </div>
 
     <article class="sheet" aria-label="출생신고서">
@@ -239,7 +253,7 @@ footer p{margin:0 0 6px}
     </article>
   </section>
 
-  <section class="game" aria-labelledby="gameTitle">
+  <section class="game after" aria-labelledby="gameTitle" hidden>
     <aside class="status">
       <p class="eyebrow" id="gameTitle">지금의 나</p>
       <div class="now"><span class="agebig" id="sAge">0<small>세</small></span><span class="yr-now" id="sYear">—</span></div>
@@ -264,7 +278,7 @@ footer p{margin:0 0 6px}
     </div>
   </section>
 
-  <section class="board" aria-labelledby="boardTitle">
+  <section class="board after" aria-labelledby="boardTitle" hidden>
     <div class="panel">
       <h2 id="boardTitle">국회 300석</h2>
       <canvas id="house" aria-label="국회 의석 분포"></canvas>
