@@ -195,7 +195,7 @@ function deathCause(d){
 
 // ── 상태 ─────────────────────────────────────────
 let P = null, W = null, nextId = 1;
-const LBL = {hp:'건강', smart:'머리', talk:'말솜씨', charm:'친화력', nerve:'담력', wit:'처세', fame:'인지도', rep:'평판', org:'조직력'};
+const LBL = {merit:'공훈', hp:'건강', smart:'머리', talk:'말솜씨', charm:'친화력', nerve:'담력', wit:'처세', fame:'인지도', rep:'평판', org:'조직력'};
 
 function fx(eff){
   const parts = [];
@@ -243,6 +243,8 @@ function title(x){
   if (x.party===NS && x.nsRank!=null) parts.push(`나치당 ${nsr(x, x.nsRank)}${x.nsRank>=2 ? ` (${x.place})` : ''}`);
   if (x.party===SED && x.sedRank!=null) parts.push(SEDR[x.sedRank]);
   if (x.nsMdr) parts.push('제국의회 의원(나치)');
+  if (x.mil && (x.mil.active || x.mil.pow)) parts.push(`${x.mil.pow ? '포로 · ' : ''}${armyName()} ${MILR[x.mil.r]}`);
+  if (x.biz) parts.push(bizTitle(x.biz));
   if (parts.length) return parts.join(' · ');
   if (x.fate) return x.fate;
   if (x.ex) return x.ex;
@@ -256,7 +258,9 @@ function power(x){
   if (x.party===NS && x.nsRank!=null) p = Math.max(p, [5,15,40,90,160,350][x.nsRank]);
   if (x.party===SED && x.sedRank!=null) p = Math.max(p, [5,30,60,100,160,300][x.sedRank]);
   if (x.best) p = Math.max(p, OFF[x.best].pw*.25);
-  if (x.party==null) return Math.round(x.fame);
+  if (x.mil && x.mil.active) p = Math.max(p, MILW[x.mil.r]);
+  if (x.biz) p = Math.max(p, bizW(x.biz.size));
+  if (x.party==null && !x.mil && !x.biz) return Math.round(x.fame);
   return Math.round(p + x.fame*1.5 + x.wins*8);
 }
 function setBest(x, o){ if (!x.best || OFF[o].pw > OFF[x.best].pw) x.best = o; }
@@ -271,26 +275,36 @@ function orgTarget(x){
   return Math.max(job, 25 + Math.min(55, (power(x) - x.fame*1.5)/6)) + (x.charm!=null ? (x.charm-50)*.3 : 0);
 }
 
-// ── 다른 정치인(봇) ──────────────────────────────
-function mkBot(age, party, region, office){
-  const male = rand() < .92;
-  region = region || wpick(REGIONS.map(r=>[r, REGION[r].w])).v;
-  return {id:nextId++, bot:true, name:mkName(male, (party===DDP && rand()<.15) || (party===SPD && rand()<.05)), male, by:P.year-age, party, region, place:pickPlace(region),
-    office:office||null, fame:clamp(normal(office ? 15+OFF[office].pw/6 : 12, 8), 3, 95), rep:clamp(normal(55,15),5,95),
-    org:clamp(normal(30+(office ? Math.min(50, OFF[office].pw/4) : 0), 10), 5, 95), talk:clamp(normal(55,12), 5, 95),
-    wins:office ? ri(0,2) : 0, best:office||null, alive:true, retired:false, nsRank:null, sedRank:null, fate:null, peak:0};
+// ── 실존 인물 ─────────────────────────────────────
+// 이름난 사람들은 모두 실존 인물이다(people.js). 그들은 실제 경력대로 살고 죽는다.
+// 기록이 남지 않은 사람(명부의 다른 후보 등)은 그 시대 이름으로 지어 부른다
+const PCODE = {SPD, KPD, Z, DDP, DVP, DNVP, NS, ETC, CDU, FDP, SED};
+const REAL = (typeof PEOPLE!=='undefined' ? PEOPLE : require('./people.js')).map((r,i) => ({id:'r'+i, real:true, name:r[0], male:r[1]==='m', b:r[2], d:r[3], dc:r[4], region:r[5],
+  path:r[6].map(e => ({from:e[0], to:e[1], t:e[2], w:e[3], party:e[4] ? PCODE[e[4]] : null, tr:e[5]})), ev:r[7]||[], top:Math.max(...r[6].map(e=>e[3]))}));
+const now = () => P.year + P.month/12;
+const realAlive = x => now() >= x.b && now() < x.d + .5;
+function realEntry(x, tr){ let e = null; for (const p of x.path) if (p.from<=P.year && P.year<=p.to && (!tr || p.tr===tr)) e = p; return e; }
+function realLast(x){ let e = null; for (const p of x.path) if (p.from<=P.year) e = p; return e; }
+function realTitle(x){
+  if (!realAlive(x)) return `${x.dc || '사망'} (${x.d})`;
+  const e = realEntry(x); if (e) return e.t;
+  const l = realLast(x); return l ? `전 ${l.t}` : '—';
 }
-const bage = b => P.year - b.by;
-const active = () => W.bots.filter(b => b.alive && !b.retired && !b.gone);
-
-function weimarBots(){
-  // 1919년 국민의회 득표대로 정치인을 깐다. 나치당은 1920년에야 생긴다
-  const sh = REICH[0][3];
-  for (let i=0;i<260;i++){
-    const party = wpick(sh.map((v,p)=>[p, p===NS ? 0 : v])).v;
-    const office = wpick([['mdr',18],['land',27],['city',35],[null,20]]).v;
-    W.bots.push(mkBot(ri(28,66), party, null, office));
+// 해마다 실존 인물들의 새 자리와 일, 죽음을 소식으로 전한다
+function realNews(){
+  const y = P.year;
+  for (const x of REAL){
+    for (const p of x.path) if (p.from===y && p.w>=300) news(`${x.name}, ${p.t}`);
+    for (const [ey, t] of x.ev) if (ey===y) news(`${x.name} — ${t}`);
+    if (x.d===y && x.top>=300) news(`${x.name} ${x.dc || '별세'} (향년 ${x.d-x.b}세)`);
   }
+}
+// 명부에 함께 오른 사람들: 그 지역 같은 당의 실존 의원이 먼저, 나머지는 그 시대 이름으로
+function listNames(k, rank, n){
+  const reals = (k==='mdr' || k==='bdr') ? REAL.filter(x => { const e = realAlive(x) && realEntry(x, 'pol'); return e && x.region===P.region && e.party===P.party && e.w>=150; }).map(x=>x.name) : [];
+  const out = [];
+  for (let i=1; i<=n; i++) out.push(i===rank ? `${P.name}(나)` : reals.shift() || mkName(rand()<.9, false));
+  return out;
 }
 
 // ── 직업 ─────────────────────────────────────────
@@ -300,7 +314,7 @@ const JOBS = {
   '철도원':{inc:1700}, '점원':{inc:1300}, '하인':{inc:600}, '사무원':{inc:1800}, '교사':{inc:2800, d:{smart:3}}, '관료':{inc:4000, d:{smart:2}},
   '변호사':{inc:8000, fame:12, d:{smart:2, org:2}}, '의사':{inc:9000, fame:10, d:{smart:3}}, '목사':{inc:3000, org:35, d:{talk:3, org:2}}, '기자':{inc:3000, fame:18, d:{talk:2}},
   '기술자':{inc:3500, d:{smart:2}}, '장교':{inc:4000, fame:8, d:{org:2}}, '노동조합 간부':{inc:2500, org:50}, '상인':{inc:3500, org:30, d:{org:2}},
-  '공장주':{inc:20000, fame:12, d:{org:4}}, '대지주':{inc:15000, fame:10, d:{org:3}}, '가정주부':{inc:0}, '삯바느질':{inc:500}, '간호사':{inc:1200}, '타자수':{inc:1300}
+  '공장주':{inc:20000, fame:12, d:{org:4}}, '기업가':{inc:0, fame:6, org:30}, '직업군인':{inc:1100}, '간호사(적십자)':{inc:900}, '대지주':{inc:15000, fame:10, d:{org:3}}, '가정주부':{inc:0}, '삯바느질':{inc:500}, '간호사':{inc:1200}, '타자수':{inc:1300}
 };
 const FJOBS = [['농부',30],['농장 일꾼',10],['공장 노동자',20],['광부',5],['수공업 장인',12],['철도원',3],['점원',3],['사무원',3],['교사',2],['관료',2],['상인',5],['의사',.5],['변호사',.4],['목사',.8],['장교',.6],['공장주',.4],['대지주',.3]];
 const JFJOBS = [['상인',40],['의사',6],['변호사',5],['공장주',4],['사무원',15],['수공업 장인',15],['교사',5],['기자',3],['공장 노동자',7]];
@@ -345,7 +359,8 @@ function newLife(alloc){
   P = {bot:false, alive:true, by, bm, year:by, month:bm, age:0, ver:0, log:[], pending:null, queue:[], shows:[], wins:0, losses:0,
        party:null, prevParty:null, office:null, best:null, landmin:false, nsRank:null, wasNS:null, sedRank:null, nsMdr:false, guilt:0, deeds:[], camp:0, prison:0,
        retired:false, ex:null, careers:[], titles:[], peak:0, peakRank:null, flags:{}, edu:null, job:null, money:0, id:0, zone:null, exile:false};
-  W = {bots:[], news:[], house:null, hist:0};
+  W = {news:[], house:null, hist:0};
+  P.policy = 'work'; P.track = null; P.mil = null; P.biz = null;
 
   const nb = births(by);
   row('출생', `${by}년 ${bm+1}월`, nb/POP, `그해 태어난 아기 약 ${(Math.round(nb/10000)*10000).toLocaleString('ko-KR')}명`);
@@ -400,7 +415,7 @@ function step(){
   turning();
   if (P.alive && P.month===P.bm){ P.age++; P.ver++; lifeYear(); }
   if (P.alive) calendar();
-  if (P.alive && P.party!=null && ['weimar','west','east'].includes(era(P.year,P.month))){ const r = rank(); if (r.me && (P.peakRank==null || r.me < P.peakRank)) P.peakRank = r.me; }
+  if (P.alive && inTrack(mainTrack()) && (mainTrack()!=='pol' || ['weimar','west','east'].includes(era(P.year,P.month))) && P.month===0){ const r = rank(); if (r.me && (P.peakRank==null || r.me < P.peakRank)) P.peakRank = r.me; }
   P.peak = Math.max(P.peak, power(P));
   return true;
 }
@@ -409,7 +424,7 @@ function step(){
 function turning(){
   const y = P.year, m = P.month;
   if (y===1914 && m===7) warStart();
-  if (y===1918 && m===10){ weimarBots(); if (P.flags.front && P.alive) say('전쟁이 끝났다. 살아서 돌아왔다.', {hp:-3}); }
+  if (y===1918 && m===10 && P.flags.front && P.alive && !(P.mil && P.mil.active)) say('전쟁이 끝났다. 살아서 돌아왔다.', {hp:-3});
   if (y===1919 && m===0 && P.party==null && P.age>=18) partyOffer();
   if (y===1923 && m===10 && P.money>0) say('초인플레이션으로 모아 둔 돈이 휴지가 됐다.', {money:-P.money*.97});
   if (y===1930 && m===0) depression();
@@ -419,6 +434,7 @@ function turning(){
   if (y===1946 && m===6) trial();
   if (y===1948 && m===5 && P.money>0 && P.zone==='west') say('화폐개혁으로 돈이 10분의 1이 됐다.', {money:-P.money*.9});
   if (y===1949 && m===4) twoStates();
+  milTurning(y, m); bizTurning(y, m);
 }
 
 // 선거 일정
@@ -438,33 +454,7 @@ function calendar(){
 }
 
 // ── 정치판의 한 해 ───────────────────────────────
-function worldYear(){
-  const e = era(P.year, 0);
-  for (const b of active()){
-    const a = bage(b);
-    if (rand() < gompQ(a, b.male ? 76 : 80)){ b.alive = false; if (power(b)>120 && e!=='nazi') news(`${title(b)} ${b.name} 별세 (향년 ${a}세)`); continue; }
-    if ((a>72 && rand()<.15) || a>82){ b.retired = true; continue; }
-    b.fame = clamp(b.fame + (fameTarget(b)-b.fame)*.25 + normal(1,4), 1, 99);
-    b.org = clamp(b.org + (orgTarget(b)-b.org)*.15 + normal(0,2), 1, 99);
-    b.peak = Math.max(b.peak, power(b));
-  }
-  // 새 얼굴: 지금 뜨는 당일수록 많이
-  if (e==='weimar'){
-    const sh = nearestReich(P.year, 0)[3];
-    for (let i=0;i<10;i++) W.bots.push(mkBot(ri(25,40), wpick(sh.map((v,p)=>[p, p===NS ? (P.year>=1920 ? v*1.5+1 : 0) : v])).v, null, null));
-  }
-  if (e==='west'){
-    const sh = nearestBund(P.year)[3];
-    const west = REGIONS.filter(r=>REGION[r].after==='west');
-    for (let i=0;i<8;i++) W.bots.push(mkBot(ri(28,45), +wpick(Object.entries(sh)).v, wpick(west.map(r=>[r,REGION[r].w])).v, null));
-  }
-  if (e==='east') for (let i=0;i<4;i++){ const b = mkBot(ri(28,45), SED, rnd(['작센','작센주','튀링겐','브란덴부르크','메클렌부르크']), null); b.sedRank = 0; W.bots.push(b); }
-  if (e==='nazi'){
-    for (const b of active()) if (b.party===NS && b.nsRank<5 && rand()<.12) b.nsRank++;
-    if (P.year===1944) for (const b of active()) if ([DNVP,Z,DVP].includes(b.prevParty) && b.party==null && rand()<.03){ b.alive = false; b.fate = '7월 20일 모의에 연루돼 처형됐다'; news(`${b.name}, 7월 20일 모의 연루로 처형`); }
-  }
-  if (W.bots.length > 700) W.bots = W.bots.filter(b => b.alive || b.peak>=90 || b.fate).slice(-700);
-}
+function worldYear(){ realNews(); }
 
 // ── 내 한 해 ─────────────────────────────────────
 function lifeYear(){
@@ -472,7 +462,8 @@ function lifeYear(){
   if (a>45) P.hp = clamp(P.hp - (a>70?2:a>60?1:.5) + normal(0,1), 0, 100);
   if (P.prison){ P.prison--; P.hp = clamp(P.hp-3,0,100); say(P.prison ? '갇힌 채로 한 해를 보냈다.' : '풀려났다.', P.prison ? {hp:-2} : null); }
   const inc = income();
-  if (a>=16 && !P.prison && !P.camp) P.money += inc - (900 + P.wealth*300);
+  // 벌이가 없으면 배우자나 식구에게 기대 산다. 씀씀이는 벌이를 크게 넘지 못한다
+  if (a>=16 && !P.prison && !P.camp) P.money += inc - Math.min(900 + P.wealth*300, inc*.9 + (P.married ? 800 : 200));
   if (a>14){
     P.fame = clamp(P.fame + (fameTarget(P)-P.fame)*.25, 0, 100);
     P.org = clamp(P.org + (orgTarget(P)-P.org)*.15, 0, 100);
@@ -484,6 +475,10 @@ function lifeYear(){
   if (P.job && JOBS[P.job] && JOBS[P.job].d && !P.office && a<65) grow(JOBS[P.job].d, .3);
   if (P.year>=1914 && P.year<=1918) warYear();
   if (!P.alive) return;
+  applyPolicy(a);
+  milYear(a); if (!P.alive) return;
+  bizYear(a);
+  bizEntry(a);
   if (e==='empire') empireYear(a);
   if (e==='weimar') weimarYear(a);
   if (e==='nazi') naziYear(a);
@@ -499,6 +494,7 @@ function income(){
   if (P.landmin) inc = Math.max(inc, OFF.landmin.sal);
   if (P.party===NS && P.nsRank!=null) inc = Math.max(inc, NS_SAL[P.nsRank]);
   if (P.job && P.age<65 && JOBS[P.job]) inc = Math.max(inc, JOBS[P.job].inc);
+  if (P.mil && P.mil.active && !P.mil.pow) inc = Math.max(inc, MILPAY[P.mil.r]);
   if (P.age>=65) inc = Math.max(inc, 600);
   if (P.year>=1948 && P.zone==='west') inc *= 3;
   return inc;
@@ -530,7 +526,8 @@ function youth(){
     {label:'가업을 잇는다', sub:`${fa} 일을 배운다`, go:()=>setJob(fa, '집안일을 이어받아 일을 시작했다.')},
     {label:'수공업 견습', sub:'목수·재단사·인쇄공이 된다', go:()=>setJob('수공업 장인', '견습공으로 들어가 몇 년 뒤 장인이 됐다.')},
     {label:'공장', sub:'노동운동과 가깝다', go:()=>setJob(REGION[P.region].ind>.7 && rand()<.4 ? '광부' : '공장 노동자', '공장에 들어갔다.')},
-    {label:'철도·사무', sub:'안정적인 월급', go:()=>setJob(rand()<.5 ? '철도원' : '사무원', '철도와 사무 일을 시작했다.')}
+    {label:'철도·사무', sub:'안정적인 월급', go:()=>setJob(rand()<.5 ? '철도원' : '사무원', '철도와 사무 일을 시작했다.')},
+    {label:'직업군인', sub:'지원 입대. 사병에서 시작한다', go:()=>startMil(false)}
   ] : [
     {label:'집안일을 돕는다', sub:'결혼을 기다린다', go:()=>setJob('가정주부', '집에서 살림을 배웠다.')},
     {label:'하녀', sub:'도시의 부잣집으로', go:()=>setJob('하인', '도시의 부잣집 하녀로 들어갔다.')},
@@ -542,6 +539,7 @@ function youth(){
 function setJob(j, line){ P.job = j; P.careers.push(j); say(line); }
 function graduate(){
   const m = P.major;
+  if (m==='사관학교') return startMil(true);
   const j = m==='법학' ? (rand()<.5 ? '변호사' : '관료') : m==='의학' ? '의사' : m==='신학' ? '목사' : m==='철학' ? (rand()<.6 ? '교사' : '기자') : m==='공학' ? '기술자' : '장교';
   setJob(j, `공부를 마치고 ${J(j,'이','가')} 됐다.`); P.fame += 3;
 }
@@ -557,7 +555,12 @@ function empireYear(a){
 
 // 제1차 세계대전
 function warStart(){
-  if (!P.male || P.age<17 || P.age>45){ if (!P.male) say('남편과 형제들이 전쟁터로 떠났다.'); return; }
+  if (P.mil && P.mil.active){ P.mil.front = '서부전선'; say('전쟁이 터졌다. 부대가 전선으로 떠났다.', null, 'big'); return; }
+  if (!P.male && P.age>=18 && P.age<=40) ask({title:'1914년 8월', desc:'적십자가 간호사를 모집한다.', options:[
+    {label:'간호사로 자원한다', sub:'야전병원으로 간다', go:()=>{ P.flags.nurse = true; setJob('간호사(적십자)', '적십자 간호사가 돼 야전병원으로 갔다.'); }},
+    {label:'집을 지킨다', sub:'', go:()=>say('남편과 형제들이 전쟁터로 떠났다.')}
+  ]});
+  if (!P.male || P.age<17 || P.age>45) return;
   if (P.age<=24 && P.hp>45){
     ask({title:'1914년 8월', desc:'온 나라가 들떴다. 크리스마스 전에 끝난다고들 한다.', options:[
       {label:'자원입대', sub:'전선 세대가 된다', go:()=>{ P.flags.front = 'vol'; say('자원해서 입대했다.', {fame:2}); }},
@@ -566,6 +569,8 @@ function warStart(){
   } else P.flags.front = P.hp>40 && rand()<.8 ? 'draft' : null;
 }
 function warYear(){
+  if (P.flags.nurse && P.year<=1918){ say(rnd(['야전병원에서 밤을 새웠다.','부상병의 마지막 편지를 대신 써 줬다.','티푸스가 병동을 덮쳤다.']), {hp:-3, rep:2}); if (rand()<.01) die('티푸스'); return; }
+  if (P.mil && P.mil.active) return;
   if (!P.flags.front || P.flags.home || P.year>1918 || (P.year===1918 && P.month>=10)) return;
   if (P.flags.front==='draft' && !P.flags.drafted){ P.flags.drafted = true; say('징집돼 전선으로 갔다.'); }
   const q = P.flags.front==='vol' ? .05 : .04, r = rand();
@@ -588,7 +593,7 @@ function partyOffer(again){
     ]});
 }
 function joinParty(p){
-  P.party = p;
+  P.party = p; if (!P.track) P.track = 'pol';
   if (p===NS){ P.nsRank = 0; P.flags.nsFrom = P.year; deed(`${P.year}년 나치당 입당`, P.year<1933 ? 1.5 : 1); }
   say(`${pname(p)}에 입당했다. 활동 지역은 ${at(P.region, P.place)}.`, {org:3, fame:2});
 }
@@ -635,7 +640,7 @@ const LEVEL = {
   bdr:{n:'연방의회', mu:45}
 };
 function myStrength(k){
-  return P.fame*.45 + P.org*.35 + P.talk*.2 + (P.wit-50)*.12 + (P.office===k ? 10 : 0) + (P.flags.front && [DNVP,NS].includes(P.party) ? 4 : 0) - (P.male ? 0 : 6) - (P.rep<30 ? 8 : 0);
+  return P.fame*.45 + P.org*.35 + P.talk*.2 + (P.wit-50)*.12 + (P.policy==='inner' ? 6 : 0) + (P.donated===P.party ? 4 : 0) + (P.office===k ? 10 : 0) + (P.flags.front && [DNVP,NS].includes(P.party) ? 4 : 0) - (P.male ? 0 : 6) - (P.rep<30 ? 8 : 0);
 }
 // 한 판: 지역 득표 → 당 의석 → 내 명부 순번
 function race(k, sh, total){
@@ -667,7 +672,9 @@ function offerRun(k, sh, total, label){
 function runFor(k, sh, total, where){
   const r = race(k, sh, total);
   const bars = Object.entries(r.share).map(([p,v]) => ({name:pname(+p), party:+p, share:v, me:+p===P.party})).sort((a,b)=>b.share-a.share).filter(x=>x.share>.004);
-  show({kind:'list', title:`${P.year} ${where} 개표`, bars, line:`${pname(P.party)} ${r.mine}석 · 나는 명부 ${r.rank}번`, won:r.won, outcome: r.won ? '당선' : '낙선'});
+  const names = listNames(k, r.rank, Math.min(Math.max(r.mine, r.rank), 8));
+  const roll = names.map((n,i) => `${i+1}번 ${n}`).join(' · ') + (r.rank>8 ? ` … ${r.rank}번 ${P.name}(나)` : '');
+  show({kind:'list', title:`${P.year} ${where} 개표`, bars, line:`${pname(P.party)} ${r.mine}석 — 명부 ${roll}`, won:r.won, outcome: r.won ? '당선' : '낙선'});
   if (r.won){
     const again = P.office===k;
     P.office = k; P.wins++; setBest(P, k); P.ex = null; P.titles.push(`${P.year} ${title(P)}`);
@@ -685,51 +692,18 @@ function electReich(e){
   const top = Object.entries(sh).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([p,v])=>`${pname(+p)} ${(v*100).toFixed(1)}%`).join(', ');
   news(`${e[0]}년 ${e[0]===1919 ? '국민의회' : '제국의회'} 선거 — ${top}`, true);
   if (e[0]===1933) return;   // 3월 선거는 이미 나치의 손아귀에서 치러졌다
-  botsElect('mdr', sh);
   if (P.office==='mdr' && !canRun()){ P.office = null; P.ex = exTitle(P); }
   if (canRun() && (P.fame>=20 || P.office==='land' || P.office==='mdr')) offerRun('mdr', sh, e[2], `${e[0]}년 ${e[0]===1919 ? '국민의회' : '제국의회'} 선거`);
 }
 function electLow(k){
   const s = k==='wcity' ? bundShare(nearestBund(P.year)) : reichShare(nearestReich(P.year, P.month));
-  botsElect(k, s);
   if (P.office===k && !canRun()){ P.office = null; P.ex = exTitle(P); }
   if (!canRun() || (k==='wcity' && P.zone!=='west') || !s[P.party]) return;
   if (k==='land' && !(P.fame>=12 || P.office==='city' || P.office==='land')) return;
   offerRun(k, s, 0, `${P.year}년 ${k==='land' ? `${P.region} 주의회` : `${P.place} 시의회`} 선거`);
 }
-function botsElect(k, sh){
-  const lvl = {city:0, wcity:0, land:1, mdr:2, bdr:2}[k];
-  for (const b of active()){
-    if (b.party==null || b.party===SED) continue;
-    const cur = b.office ? {city:0, wcity:0, land:1, mdr:2, bdr:2}[b.office] : -1;
-    if (cur!==lvl && !(cur===lvl-1 && b.fame>25+lvl*10 && rand()<.35) && !(cur<0 && lvl===0 && rand()<.3)) continue;
-    const s = localShare(sh, prof(b.region, b.place))[b.party] || 0;
-    if (rand() < sig(s*10 - 1.6 + (b.fame-30)/12 + (cur===lvl ? .8 : 0))){ b.office = k; b.wins++; setBest(b, k); }
-    else if (cur===lvl){ b.office = null; b.ex = exTitle(b); }
-  }
-}
-
 // ── 나치 독일 ────────────────────────────────────
 function seizure(){
-  // 다른 정치인들의 운명
-  const F = {
-    [KPD]:[['수용소에 끌려갔다',45],['망명했다',20],['지하로 숨었다',20],['살해당했다',5],['정치를 떠났다',10]],
-    [SPD]:[['수용소에 끌려갔다',20],['망명했다',15],['정치를 떠났다',55],['지하 저항에 가담했다',10]],
-    [DDP]:[['망명했다',30],['정치를 떠났다',60],['나치당에 들어갔다',5],['수용소에 끌려갔다',5]],
-    [Z]:[['정치를 떠났다',75],['나치당에 들어갔다',10],['망명했다',8],['수용소에 끌려갔다',7]],
-    [DVP]:[['정치를 떠났다',70],['나치당에 들어갔다',20],['망명했다',10]],
-    [DNVP]:[['나치당에 들어갔다',35],['정치를 떠났다',60],['수용소에 끌려갔다',5]],
-    [ETC]:[['정치를 떠났다',80],['나치당에 들어갔다',20]]
-  };
-  for (const b of active()){
-    b.landmin = false; b.peak = Math.max(b.peak, power(b));
-    if (b.party===NS){ b.nsRank = clamp((b.office==='mdr' ? 3 : b.office==='land' ? 2 : 1) + (rand()<.15 ? 1 : 0), 1, 5); b.office = null; continue; }
-    if (b.party==null) continue;
-    const f = wpick(F[b.party]).v;
-    b.prevParty = b.party; b.office = null;
-    if (f==='나치당에 들어갔다'){ b.party = NS; b.nsRank = ri(0,2); }
-    else { b.party = null; b.fate = f; if (f==='살해당했다') b.alive = false; if (f==='망명했다') b.gone = true; }
-  }
   // 나에게 오는 1933년
   if (P.party===NS || P.jew || P.party==null) return;
   if (P.party===KPD){
@@ -744,7 +718,7 @@ function exileAsk(why){
   ask({title:'망명', desc:`${why} 떠날까?`, valid:()=>!P.exile && P.alive && !P.camp, options:[
     {label:'망명한다', sub:'프라하·파리·런던으로', go:()=>{ P.exile = true; P.office = null; P.landmin = false; say('국경을 넘어 망명했다.', {money:-P.money*.7, org:-10}, 'big'); }},
     {label:'남는다', sub:'숨죽이고 산다', go:()=>say('남기로 했다.')},
-    {label:'남아서 싸운다', sub:'지하 저항. 위험하다', go:()=>{ P.flags.resist = true; say('지하 조직에 들어갔다.', {rep:5}); }}
+    {label:'남아서 싸운다', sub:'지하 저항. 위험하다', go:()=>{ P.policy = 'under'; P.flags.resist = true; say('지하 조직에 들어갔다.', {rep:5}); }}
   ]});
 }
 function ban(){
@@ -776,7 +750,7 @@ function naziYear(a){
   }
   if (P.party===NS){
     P.guilt += NS_GUILT[P.nsRank];
-    if (P.nsRank<5 && rand() < sig((P.fame+P.org-80)/15 + (P.wit-50)/20)*.3){
+    if (P.nsRank<5 && rand() < sig((P.fame+P.org-80)/15 + (P.wit-50)/20 + (P.policy==='zeal' ? 1 : 0))*.3){
       P.nsRank++; const t = nsr(P, P.nsRank);
       say(`나치당 ${t}로 올라갔다.`, {fame:3, org:3}, 'big'); deed(`${y}년 나치당 ${t}`, P.nsRank); P.titles.push(`${y} 나치당 ${t}`);
     } else say(`나치당 ${nsr(P, P.nsRank)}로 일했다.`);
@@ -799,9 +773,9 @@ function naziYear(a){
       {label:'이웃을 들여 숨겨 준다', sub:'위험하다', go:()=>{ P.flags.helper = (P.flags.helper||0)+1; say('이웃 가족을 하룻밤 숨겨 줬다.', {rep:6}); if (rand()<risk(.1)) caught(); }}
     ]});
   }
-  if (y>=1938 && y<=1940 && !P.flags.aryan && (P.money>2000 || ['상인','공장주','대지주'].includes(P.job) || (P.party===NS && P.nsRank>=2)) && rand()<.4){ P.flags.aryan = true;
+  if (y>=1938 && y<=1940 && !P.flags.aryan && (P.money>2000 || P.biz || ['상인','공장주','대지주'].includes(P.job) || (P.party===NS && P.nsRank>=2)) && rand()<.4){ P.flags.aryan = true;
     ask({title:'헐값', desc:'쫓겨나는 유대인 가족의 가게와 집을 헐값에 넘겨받을 수 있다.', options:[
-      {label:'넘겨받는다', sub:'재산이 크게 는다', go:()=>{ deed('유대인 재산 헐값 인수(아리아화)', 3); P.flags.took = true; say('가게와 집을 넘겨받았다.', {money:8000}); }},
+      {label:'넘겨받는다', sub:'재산이 크게 는다', go:()=>{ deed('유대인 재산 헐값 인수(아리아화)', 3); P.flags.took = true; if (P.biz) P.biz.size *= 1.3; say(P.biz ? '경쟁 회사를 헐값에 넘겨받았다.' : '가게와 집을 넘겨받았다.', {money:8000}); }},
       {label:'거절한다', sub:'', go:()=>say('손대지 않았다.', {rep:3})}
     ]});
   }
@@ -811,7 +785,7 @@ function naziYear(a){
       {label:'핑계를 대고 빠진다', sub:'', go:()=>say('가지 않았다.', {org:-3})}
     ]});
   }
-  if (y>=1941 && y<=1944 && ['농부','공장주','대지주'].includes(P.job) && !P.flags.forced){ P.flags.forced = true;
+  if (y>=1941 && y<=1944 && (['농부','공장주','대지주'].includes(P.job) || (P.biz && P.biz.size>=20)) && !P.flags.forced){ P.flags.forced = true;
     ask({title:'강제노동자', desc:'폴란드와 소련에서 끌려온 사람들이 일손으로 배정됐다.', options:[
       {label:'규정대로 부린다', sub:'', go:()=>{ deed('강제노동자 혹사', 2); say('그들을 부렸다.', {money:1500}); }},
       {label:'몰래 먹을 것을 더 준다', sub:'걸리면 처벌받는다', go:()=>{ say('몰래 빵을 더 줬다.', {rep:4}); if (rand()<risk(.08)) caught(); }}
@@ -823,7 +797,7 @@ function naziYear(a){
       {label:'돌려보낸다', sub:'', go:()=>say('문을 닫았다. 그 뒤로 소식을 듣지 못했다.')}
     ]});
   }
-  if (y===1943 && P.male && (P.job==='장교' || [DNVP,Z,DVP].includes(P.prevParty)) && P.fame>=20 && !P.flags.july && P.party!==NS){ P.flags.july = true;
+  if (y===1943 && P.male && ((P.mil && P.mil.active && P.mil.r>=8) || [DNVP,Z,DVP].includes(P.prevParty)) && P.fame>=20 && !P.flags.july && P.party!==NS){ P.flags.july = true;
     ask({title:'모의', desc:'옛 동료가 조심스럽게 묻는다. 그가 없어진 뒤에 나라를 맡을 사람이 필요하다고.', options:[
       {label:'함께한다', sub:'', go:()=>{ P.flags.plot = true; say('모의에 이름을 올렸다.', {rep:8}); }},
       {label:'못 들은 걸로 한다', sub:'', go:()=>{}}
@@ -833,7 +807,7 @@ function naziYear(a){
   if (y>=1940) war2(a);
 }
 // 처세가 좋으면 덜 걸리고, 담력이 크면 심문과 수용소를 더 버틴다
-const risk = p => p*(1.3 - P.wit*.006);
+const risk = p => p*(1.3 - P.wit*.006)*(P.policy==='safe' ? .6 : P.policy==='under' ? 1.4 : 1);
 const frail = p => p*(1.5 - P.nerve*.01);
 function caught(){
   say('게슈타포에 잡혔다.', {hp:-10}, 'big');
@@ -842,7 +816,7 @@ function caught(){
 }
 function war2(a){
   const city = !isVillage(P.place);
-  if (P.male && a<=45 && P.hp>45 && !P.flags.ww2 && P.party!==NS){ P.flags.ww2 = true; say('다시 군복을 입었다. 후방 경비 부대로 갔다.'); }
+  if (P.male && a<=45 && P.hp>45 && !P.flags.ww2 && P.party!==NS && !P.mil){ P.flags.ww2 = true; say('다시 군복을 입었다. 후방 경비 부대로 갔다.'); }
   if (P.year>=1942 && city && rand()<.1){ if (rand()<.12){ die('공습'); return; } say('공습으로 집이 불탔다.', {hp:-5, money:-P.money*.5}); }
   if (P.year===1944 && P.male && a<=60 && rand()<.5) say('국민돌격대에 끌려갔다.', {hp:-4});
   if (P.year===1945 && P.male && a<=60 && rand()<.05){ die('국민돌격대로 싸우다 전사'); return; }
@@ -854,6 +828,7 @@ function jewYear(){
   if (!P.flags.j33){ P.flags.j33 = true; say('가게 앞에 "유대인에게서 사지 말라"는 팻말이 붙었다.', null, 'big'); if (['관료','교사','변호사'].includes(P.job)){ say('직업공무원법으로 일자리에서 쫓겨났다.', {money:-1000}); P.job = null; } }
   if (P.party!=null){ P.prevParty = P.party; P.party = null; P.office = null; P.landmin = false; }
   if (y===1935 && !P.flags.j35){ P.flags.j35 = true; say('뉘른베르크법으로 시민권을 잃었다.', null, 'big'); }
+  if (P.biz && y>=1935){ say(`${P.biz.name}을 헐값에 넘기라는 압박에 회사를 빼앗겼다.`, {money:-P.money*.5}, 'big'); P.biz = null; P.track = null; }
   if (y===1938 && !P.flags.j38){ P.flags.j38 = true; say('회당이 불탔다. 집안 남자들이 수용소로 끌려갔다.', {hp:-8}, 'big'); }
   if (y<=1939){
     const left = y<=1935 ? '아직 길이 있다' : y<=1938 ? '받아 주는 나라가 줄고 있다' : '거의 마지막 기회다';
@@ -884,7 +859,6 @@ function surrender(){
     P.zone = REGION[P.region].after==='west' ? 'west' : 'east';
     say(`${at(P.region, P.place)}에 새로 자리를 잡았다.`);
   }
-  for (const b of active()) if (b.party===NS){ b.prevParty = NS; b.party = null; b.nsRankWas = b.nsRank; b.nsRank = null; }
   W.house = null;
   if (P.exile) ask({title:'귀국', desc:'전쟁이 끝났다. 돌아갈까?', valid:()=>P.exile && P.alive, options:[
     {label:'돌아간다', sub:'폐허가 된 고향으로', go:()=>{ P.exile = false; P.zone = P.zone || 'west'; say('독일로 돌아왔다.', {fame:4}, 'big'); }},
@@ -894,19 +868,16 @@ function surrender(){
 
 // 전범재판·탈나치화 심판
 function trial(){
-  for (const b of W.bots) if (b.alive && b.prevParty===NS && b.nsRankWas!=null){
-    const g = b.nsRankWas;
-    const v = g>=5 ? wpick([['사형',30],['무기징역',30],['징역 20년',25],['자살',15]]).v : g>=4 ? wpick([['징역 10년',40],['징역 5년',40],['중범(II급) 판정',20]]).v : g>=2 ? wpick([['경범(III급) 판정',50],['추종자(IV급) 판정',50]]).v : '추종자(IV급) 판정';
-    b.fate = v==='자살' ? '1945년 자살했다' : `전후 재판: ${v}`; if (v==='사형' || v==='자살') b.alive = false;
-    if (g>=4) news(`${b.name}(전 ${NSR.m[g]}) — ${v}`);
-  }
   if (!P.alive || P.jew) return;
   const member = P.wasNS!=null;
   if (!member && P.guilt<2) return;
   // 처세가 좋으면 '세탁 증명서'(페르질샤인)를 써 줄 사람을 더 많이 구한다
   const g = P.guilt - (P.wit-50)/25, rk = member ? P.wasNS : -1, east = P.zone==='east';
   let court, verdict, years = 0, dead = false;
-  if (rk>=5 || g>=25){ court = '연합국 전범재판'; verdict = wpick([['사형',40],['무기징역',30],['징역 20년',30]]).v; if (verdict==='사형') dead = true; else years = verdict==='무기징역' ? 10 : 8; }
+  const general = P.mil && P.mil.r>=10, magnate = P.biz && P.biz.size>=1000;
+  if (general && g>=5){ court = '최고사령부 재판(장군 재판)'; const n = g>=15 ? ri(10,20) : ri(3,10); verdict = g>=25 ? '사형' : `징역 ${n}년`; if (verdict==='사형') dead = true; else years = Math.ceil(n/2); }
+  else if (magnate && g>=5){ court = '뉘른베르크 기업인 재판'; const n = g>=12 ? ri(6,12) : ri(2,6); verdict = `징역 ${n}년, 회사 재산 몰수`; years = Math.ceil(n/2); P.biz.size *= .5; }
+  else if (rk>=5 || g>=25){ court = '연합국 전범재판'; verdict = wpick([['사형',40],['무기징역',30],['징역 20년',30]]).v; if (verdict==='사형') dead = true; else years = verdict==='무기징역' ? 10 : 8; }
   else if (east && rk>=2){ court = '소련 군사재판'; verdict = '특별수용소 수감'; years = ri(3,6); if (rand()<.3) dead = 'camp'; }
   else if (g>=12){ court = '연합국 재판'; const n = ri(5,15); verdict = `징역 ${n}년`; years = Math.ceil(n/2); }
   else if (g>=8){ court = '탈나치화 심판소'; verdict = '중범(II급) — 노동수용소'; years = ri(1,3); }
@@ -924,17 +895,6 @@ function trial(){
 
 function twoStates(){
   if (!P.zone && !P.exile) P.zone = 'west';
-  for (const b of active()){
-    if (b.gone && rand()<.5) b.gone = false;
-    if (b.gone) continue;
-    const prev = b.prevParty ?? b.party, after = REGION[b.region].after;
-    if (after==='west' || after==='lost' || b.region==='베를린'){
-      if (after==='lost') b.region = rnd(['바이에른','하노버','헤센']);
-      b.party = prev===SPD ? SPD : prev===KPD ? KPD : prev===Z ? CDU : [DDP,DVP].includes(prev) ? FDP : prev===DNVP ? (rand()<.6 ? CDU : ETC)
-        : prev===NS ? (b.fate && b.fate.includes('추종자') && rand()<.4 ? wpick([[CDU,4],[FDP,4],[ETC,3]]).v : null) : null;
-      if (b.party!=null){ b.fate = null; b.office = null; }
-    } else { b.party = [SPD,KPD].includes(prev) ? SED : null; if (b.party!=null){ b.fate = null; b.sedRank = ri(0,3); } else b.gone = true; }
-  }
   W.house = P.zone==='east' ? {name:'인민의회', total:400, seats:{[SED]:110, [ETC]:290}} : null;
   if (P.alive && !P.exile && !P.prison && P.age<80) postwarParty();
 }
@@ -966,7 +926,6 @@ function electBund(b){
   const sh = bundShare(b);
   const top = Object.entries(sh).sort((a,c)=>c[1]-a[1]).slice(0,3).map(([p,v])=>`${pname(+p)} ${(v*100).toFixed(1)}%`).join(', ');
   news(`${b[0]}년 연방의회 선거 — ${top}`, true);
-  botsElect('bdr', sh);
   if (P.office==='bdr' && !canRun()){ P.office = null; P.ex = exTitle(P); }
   if (canRun() && sh[P.party] && (P.fame>=20 || P.office==='wcity' || P.office==='bdr')) offerRun('bdr', sh, b[2], `${b[0]}년 연방의회 선거`);
 }
@@ -1003,21 +962,291 @@ function die(cause){
   say(`${cause}${eu(cause)} 세상을 떠났다. 향년 ${P.age}세.`, null, 'death');
 }
 
-// ── 순위 ─────────────────────────────────────────
-// 바이마르와 서독·동독에서만 매긴다. 나치 독일과 점령기에는 순위 대신 옛 경쟁자들의 행방을 본다
-function rank(){
-  const e = era(P.year, P.month), east = e==='east';
-  const list = active().filter(b => b.party!=null && (east ? b.party===SED : e==='west' ? b.party!==SED : true)).map(b=>({x:b, p:power(b)}));
-  if (P.alive && P.party!=null && !P.retired && !P.exile) list.push({x:P, p:power(P)});
-  list.sort((a,b)=>b.p-a.p);
-  const me = list.findIndex(e=>e.x===P);
-  return {list, me: me<0 ? null : me+1, total:list.length};
+// ── 활동 방침 ────────────────────────────────────
+// 해마다 무엇에 힘을 쏟을지. 언제든 바꿀 수 있고, 한 해가 지날 때 그대로 반영된다
+function policies(){
+  const e = era(P.year, P.month), L = [['work','생업에 전념','돈을 모은다'], ['net','인맥 쌓기','조직력이 는다'], ['safe','몸 사리기','건강을 챙기고 위험을 피한다']];
+  if (P.mil && P.mil.active && !P.mil.pow){
+    L.push(['drill','부대 관리','공훈이 쌓인다'], ['staff','참모 교육','진급이 빨라지고 전선 위험이 준다'], ['patron','상관에게 줄서기','진급이 빨라지고 평판이 깎인다']);
+    if (atWar(P.year)) L.push(['front','전선 자원','공훈이 크게 쌓이고 위험하다']);
+  }
+  if (P.biz) L.push(['invest','설비 투자','회사가 크고 이익은 준다'], ['expand','빚내서 확장','크게 크거나 크게 망한다'], ['workers','노동자 처우','평판이 오르고 이익은 준다'], ['donate','정당 후원','정치 인맥이 생긴다']);
+  if (P.party!=null && P.party!==SED && (e==='weimar' || e==='west')) L.push(['local','지역 활동','조직력이 는다'], ['speech','연설·집회','인지도가 오르고 다칠 수 있다'], ['inner','당내 다지기','명부 순번이 오른다']);
+  if (P.party===NS && e==='nazi') L.push(['zeal','열성 당 활동','승진이 빨라지고 기록이 남는다']);
+  if (e==='nazi' && !P.jew && P.party!==NS && !P.exile && !P.camp && (P.prevParty!=null || P.rep>=60)) L.push(['under','지하 활동','평판이 오르고 체포 위험이 크다']);
+  L.push(['family','가족과 휴식','건강이 좋아진다']);
+  return L.map(([k,label,sub]) => ({k, label, sub}));
 }
-function fates(){
-  return W.bots.filter(b => b.peak>=90).sort((a,b)=>b.peak-a.peak).slice(0,14)
-    .map(b => ({id:b.id, name:b.name, was:pname(b.prevParty ?? b.party), now: !b.alive && !b.fate ? '세상을 떠났다' : b.fate || (b.party===NS ? `나치당 ${NSR.m[b.nsRank||0]}` : b.gone ? '망명했다' : title(b) || '—')}));
+function setPolicy(k){ if (policies().some(o=>o.k===k)){ P.policy = k; P.ver++; } }
+function applyPolicy(a){
+  if (a<16) return;
+  if (!policies().some(o=>o.k===P.policy)) P.policy = 'work';
+  const k = P.policy;
+  P.flags.resist = k==='under';
+  if (k==='work') P.money += income()*.25;
+  if (k==='net') P.org = clamp(P.org+3, 0, 100);
+  if (k==='safe') P.hp = clamp(P.hp+1, 0, 100);
+  if (k==='family'){ P.hp = clamp(P.hp+2, 0, 100); P.fame = clamp(P.fame-1, 0, 100); }
+  if (k==='local') P.org = clamp(P.org+3, 0, 100);
+  if (k==='speech'){ P.fame = clamp(P.fame+3, 0, 100); if (rand()<.1) say('집회가 난장판이 돼 다쳤다.', {hp:-4}); }
+  if (k==='zeal'){ P.org = clamp(P.org+2, 0, 100); deed(`${P.year}년 열성 당 활동`, .5); }
+  if (k==='drill' && P.mil) P.mil.merit += .5;
+  if (k==='staff') P.smart = clamp(P.smart+1, 0, 100);
+  if (k==='patron') P.rep = clamp(P.rep-1, 0, 100);
 }
 
-const E = {POP, TRAITS, TRAIT_SUM, newLife, step, choose, ack, title, power, rank, fates, money, pct, pname, era, ERA_NAME, PARTY, NS, gompQ,
+// ── 군인 ─────────────────────────────────────────
+const MILR = ['이병','상병','하사','상사','소위','중위','대위','소령','중령','대령','소장','중장','대장','상급대장','원수'];
+const MILW = [5,8,15,25,40,55,80,120,160,220,320,420,550,650,800];
+const MILPAY = [600,700,900,1100,2400,2800,3600,4500,5500,6500,9000,11000,13000,15000,20000];
+const atWar = y => (y>=1914 && y<=1918) || (y>=1939 && y<=1945);
+function armyName(){
+  const y = P.year;
+  return y<1919 ? '제국군' : y<1935 ? '국방군' : y<=1945 ? '국방군' : P.zone==='east' ? '국가인민군' : '연방군';
+}
+function startMil(officer){
+  P.track = 'mil';
+  P.mil = {r: officer ? 4 : 0, merit:0, active:true, pow:0, front:null, medals:[]};
+  setJob(officer ? '장교' : '직업군인', officer ? '사관학교를 마치고 소위로 임관했다.' : '지원 입대해 이병이 됐다.');
+}
+const WOUND = ['포탄 파편에 다쳤다.','총에 맞았지만 살았다.','가스에 쓰러졌다가 깨어났다.','동상으로 발가락을 잃었다.'];
+function medal(name){ if (!P.mil.medals.includes(name)){ P.mil.medals.push(name); say(`${name}을 받았다.`, {fame:3, rep:2}, 'big'); P.titles.push(`${P.year} ${name}`); } }
+function milYear(a){
+  const M = P.mil; if (!M || P.prison || P.camp) return;
+  if (M.pow){
+    M.pow--;
+    if (rand() < (M.powEast ? .08 : .01)){ die('포로수용소'); return; }
+    say(M.pow ? `${M.powEast ? '소련' : '연합군'} 포로수용소에서 한 해를 보냈다.` : '포로수용소에서 풀려나 돌아왔다.', {hp:-5});
+    if (!M.pow){ M.active = false; P.ex = `전 ${MILR[M.r]}`; }
+    return;
+  }
+  if (!M.active) return;
+  const y = P.year, war = atWar(y), pol = P.policy;
+  const lim = M.r>=10 ? 63 : M.r>=7 ? 56 : M.r>=4 ? 48 : 40;
+  if (!war && a>lim){ M.active = false; P.ex = `예비역 ${MILR[M.r]}`; say(`${MILR[M.r]}로 전역했다.`, null, 'big'); return; }
+  if (war){
+    const mul = pol==='front' ? 1.6 : pol==='staff' ? .5 : 1;
+    const base = y<=1918 ? [.06,.06,.06,.06,.08,.08,.07,.04,.03,.03,.01,.01,.01,.01,.01] : [.05,.05,.05,.05,.06,.06,.05,.03,.02,.02,.01,.01,.01,.01,.01];
+    const q = base[M.r] * mul * (1.2 - P.nerve/250), r = rand();
+    if (r < q){ die('전사'); return; }
+    if (r < q*3) say(rnd(WOUND), {hp:-12});
+    else say(rnd(y<=1918 ? ['참호에서 한 해를 버텼다.','솜 강가에서 싸웠다.','베르됭 앞에서 겨울을 났다.','동부전선에서 진격했다.'] :
+      (M.front==='동부전선' ? ['러시아의 진흙 속을 행군했다.','동부전선의 겨울을 버텼다.','후퇴하는 길에 부하를 잃었다.'] : ['프랑스에 주둔했다.','대서양 방벽을 쌓았다.','이탈리아 전선에서 싸웠다.'])), {hp:-2});
+    M.merit += mul * (1 + rand()*2) * (P.nerve/50);
+    if (y<=1918){ if (M.merit>=2) medal('2급 철십자 훈장'); if (M.merit>=5) medal('1급 철십자 훈장'); if (M.r>=4 && M.merit>=10 && rand()<.2) medal('푸르 르 메리트 훈장'); }
+    else { if (M.merit>=2) medal('2급 철십자 훈장'); if (M.merit>=5) medal('1급 철십자 훈장'); if (M.merit>=10 && rand()<.25) medal('기사철십자 훈장'); }
+  } else if (rand()<.4) say(rnd(['기동 훈련을 지휘했다.','부대를 옮겼다.','참모 회의에 들어갔다.','사열을 받았다.']));
+  // 진급: 전쟁 때 빠르고, 10만 명 군대(1919~34) 때는 막힌다. 부사관은 전쟁 때만 장교가 될 수 있다
+  let base = war ? .45 : (y>=1919 && y<=1934) ? .1 : (y>=1935 && y<=1938) ? .35 : .18;
+  if (M.r===3) base = war && P.smart>=45 ? .12 : 0;
+  if (M.r===13 && !war) base = 0;
+  // 위로 갈수록 자리가 좁다. 원수는 전쟁 중에만, 아주 드물게
+  const narrow = [1,1,1,1,1,1,1,.8,.7,.55,.3,.25,.15,.08,.02][M.r+1] ?? 0;
+  const pr = base * 2 * narrow * sig((P.smart + P.nerve + P.wit - 150)/30 + M.merit/10 - M.r*.12 + (pol==='staff' ? .5 : pol==='patron' ? .7 : 0));
+  if (M.r < 14 && rand() < pr){
+    M.r++;
+    say(`${MILR[M.r]}로 진급했다.`, {fame: M.r>=10 ? 4 : 1}, M.r>=9 ? 'big' : 'life');
+    if (M.r>=9) P.titles.push(`${y} ${armyName()} ${MILR[M.r]}`);
+    if (M.r>=10) news(`${P.name}, ${MILR[M.r]} 진급`);
+  }
+  // 동부전선의 명령
+  if (y>=1942 && y<=1944 && M.front==='동부전선' && M.r>=5 && !P.flags.reprisal){ P.flags.reprisal = true;
+    ask({title:'보복 명령', desc:'빨치산 습격의 보복으로 마을 하나를 불태우고 주민을 처형하라는 명령이 내려왔다.', valid:()=>P.mil && P.mil.active, options:[
+      {label:'명령대로 한다', sub:'', go:()=>{ deed('점령지 민간인 보복 처형', 6); M.merit += 1; say('명령을 따랐다. 그 마을의 이름을 잊지 못했다.', {rep:-6}); }},
+      {label:'흐지부지 넘긴다', sub:'들키면 군법회의', go:()=>{ say('명령을 미루고 보고서를 꾸몄다.', {rep:4}); if (rand()<risk(.15)){ say('들켜서 좌천됐다.', {fame:-3}); if (M.r>4) M.r--; } }}
+    ]});
+  }
+}
+function milTurning(y, m){
+  const M = P.mil;
+  if (!M || !P.alive) return;
+  // 1918년 패전: 10만 명 군대만 남는다
+  if (y===1918 && m===11 && M.active) ask({title:'패전', desc:'베르사유 조약으로 군대가 10만 명으로 줄어든다. 장교 여덟 중 일곱은 떠나야 한다.', valid:()=>P.mil.active, options:[
+    {label:'군에 남기를 청한다', sub:`남을 가능성 약 ${Math.round(clamp((M.r>=4 ? .15 : .08) + M.merit/40 + (P.wit-50)/300, .03, .8)*100)}%`, go:()=>{
+      if (rand() < clamp((M.r>=4 ? .15 : .08) + M.merit/40 + (P.wit-50)/300, .03, .8)) say('국방군(라이히스베어)에 남았다.', null, 'big');
+      else { M.active = false; P.ex = `전 ${MILR[M.r]}`; say('명단에 들지 못하고 전역했다.', {hp:-2}, 'big'); P.job = null; } }},
+    {label:'의용군(자유군단)에 들어간다', sub:'혁명을 진압하러 간다', go:()=>{ P.flags.freikorps = true; say('의용군에 들어갔다.', {org:3, rep:-3}); }},
+    {label:'군복을 벗는다', sub:'새 삶을 찾는다', go:()=>{ M.active = false; P.ex = `전 ${MILR[M.r]}`; P.job = null; say('군복을 벗었다.'); }}
+  ]});
+  if (y===1920 && m===2 && (M.active || P.flags.freikorps)) ask({title:'카프 폭동', desc:'의용군이 베를린으로 진군해 정부를 몰아내려 한다. 함께할까?', options:[
+    {label:'가담한다', sub:'', go:()=>{ say('폭동에 가담했다. 총파업 앞에 나흘 만에 무너졌다.', {fame:2, rep:-6}); if (rand()<.5){ M.active = false; P.ex = `전 ${MILR[M.r]}`; say('군에서 쫓겨났다.', null, 'big'); } }},
+    {label:'병영을 지킨다', sub:'"국방군은 국방군을 쏘지 않는다"', go:()=>say('병영에 머물렀다.')}
+  ]});
+  if (y===1920 && m===5 && P.flags.freikorps && !M.active){ P.flags.freikorps = false; }
+  if (y===1934 && m===7 && M.active) ask({title:'충성 맹세', desc:'헌법이 아니라 히틀러 한 사람에게 무조건 복종하겠다고 맹세하라고 한다.', valid:()=>P.mil.active, options:[
+    {label:'맹세한다', sub:'모두가 한다', go:()=>say('맹세했다.')},
+    {label:'전역한다', sub:'', go:()=>{ M.active = false; P.ex = `예비역 ${MILR[M.r]}`; say('맹세 대신 군복을 벗었다.', {rep:6}, 'big'); }}
+  ]});
+  if (y===1939 && m===8 && !M.active && !M.pow && P.age<=60 && M.r>=4 && !P.exile && !P.camp){ M.active = true; say(`예비역 ${MILR[M.r]}으로 다시 불려 나왔다.`, null, 'big'); }
+  if (y===1939 && m===8 && M.active) M.front = '서부전선';
+  if (y===1941 && m===5 && M.active){ M.front = rand()<.65 ? '동부전선' : '서부전선'; if (M.front==='동부전선') say('소련 침공에 나섰다.', null, 'big');
+    if (M.front==='동부전선' && M.r>=7) ask({title:'인민위원 명령', desc:'붙잡은 소련군 정치장교를 재판 없이 사살하라는 명령을 부하들에게 전달해야 한다.', options:[
+      {label:'전달한다', sub:'', go:()=>deed('인민위원 명령 하달', 4)},
+      {label:'서랍에 넣어 둔다', sub:'', go:()=>say('명령을 전달하지 않았다.', {rep:4})}
+    ]});
+  }
+  if (y===1943 && m===1 && M.active && M.front==='동부전선' && rand()<.08){ M.pow = ri(6,12); M.powEast = true; say('스탈린그라드에서 포위돼 소련군에 항복했다.', {hp:-15}, 'big'); }
+  if (y===1945 && m===4 && M.active && !M.pow){ M.pow = M.front==='동부전선' ? ri(3,10) : ri(1,3); M.powEast = M.front==='동부전선'; say(`${M.powEast ? '소련군' : '연합군'}의 포로가 됐다.`, {hp:-8}, 'big'); }
+  // 1955·1956년: 서독 연방군, 동독 국가인민군
+  if (((y===1955 && m===10 && P.zone==='west') || (y===1956 && m===2 && P.zone==='east')) && !M.active && !M.pow && P.age<=62 && M.r>=6 && !P.prison && !/사형|징역/.test(P.flags.tried||''))
+    ask({title: P.zone==='west' ? '연방군 창설' : '국가인민군 창설', desc:'새 군대가 경험 많은 장교를 찾는다.', options:[
+      {label:'들어간다', sub:'', go:()=>{ M.active = true; M.front = null; say(`${armyName()} ${MILR[M.r]}로 다시 군복을 입었다.`, null, 'big'); }},
+      {label:'사양한다', sub:'', go:()=>{}}
+    ]});
+}
+
+// ── 기업인 ───────────────────────────────────────
+// 군수(arm)에 쓰일 수 있는 업종은 전쟁과 재무장 때 크게 큰다
+const IND = {'섬유':0, '철강·석탄':1, '화학':1, '전기':.6, '기계·자동차':1, '출판·신문':0, '식품·담배':0, '백화점·상점':0};
+const bizW = size => Math.round(clamp(40 + 130*Math.log10(size+1), 40, 800));
+function bizTitle(b){
+  const s = b.size, t = s<10 ? '주인' : s<100 ? '공장주' : s<1000 ? '사장' : s<10000 ? '회장' : '콘체른 회장';
+  return `${b.name} ${t}`;
+}
+// 그해 경기. 1923년 인플레이션, 1930~32년 대공황, 1945년 붕괴, 1950년대 경제기적
+function econ(y, arm){
+  if (y<1914) return .04;
+  if (y<=1918) return arm ? .12 : -.06;
+  if (y<=1922) return .03;
+  if (y===1923) return -.12;
+  if (y<=1928) return .06;
+  if (y===1929) return -.04;
+  if (y<=1932) return -.14;
+  if (y<=1938) return arm ? .16 : .06;
+  if (y<=1944) return arm ? .1 : -.06;
+  if (y===1945) return -.35;
+  if (y<=1947) return -.05;
+  if (y<=1966) return .09;
+  if (y<=1973) return .05;
+  if (y<=1975) return -.03;
+  return .03;
+}
+function startBiz(ind, size, line){
+  const sur = P.name.split(' ').pop();
+  P.biz = {name:`${sur} ${ind==='백화점·상점' ? '상회' : ind}`, ind, size, debt:0, armed:false};
+  P.track = 'biz';
+  setJob('기업가', line);
+}
+function bizEntry(a){
+  if (P.biz || P.exile || P.prison || P.camp || P.jew && P.year>=1933 && P.year<1946) return;
+  // 가업: 아버지가 공장주나 상인이면 물려받는다. 딸은 아들이 없을 때만(드문 예외)
+  if (a===26 && P.fa && ['공장주','상인'].includes(P.fa.v) && !P.flags.heirAsked && (P.male || rand()<.35)){
+    P.flags.heirAsked = true;
+    const big = P.fa.v==='공장주', ind = big ? rnd(['섬유','철강·석탄','화학','기계·자동차','식품·담배']) : '백화점·상점';
+    ask({title:'가업', desc: P.male ? `아버지가 ${big ? '공장' : '가게'}를 물려주려 한다.` : `아들이 없는 아버지가 ${big ? '공장' : '가게'}를 딸인 나에게 맡기려 한다. 흔치 않은 일이다.`, options:[
+      {label:'물려받는다', sub:`${ind} · 직원 약 ${big ? '수백' : '열'} 명`, go:()=>startBiz(ind, big ? ri(80,400) : ri(3,15), `${big ? '공장' : '가게'}를 물려받았다.`)},
+      {label:'내 길을 간다', sub:'', go:()=>say('가업을 잇지 않았다.')}
+    ]});
+    return;
+  }
+  // 창업: 밑천이 있고 장사나 기술을 아는 사람
+  if (a>=24 && a<=55 && P.money>=2500 && ['상인','기술자','수공업 장인','사무원','점원','변호사','기자','장교'].includes(P.job) && !P.flags.noBiz && rand()<.12){
+    const inds = Object.keys(IND).sort(()=>rand()-.5).slice(0,3);
+    ask({title:'창업', desc:`모아 둔 ${money(P.money)}로 회사를 차릴 수 있다.`, valid:()=>!P.biz, options:[
+      ...inds.map(ind => ({label:ind, sub: IND[ind] ? '전쟁 때 크게 큰다' : '경기를 덜 탄다', go:()=>{ P.money -= 2500; startBiz(ind, ri(4,12), `${ind} 회사를 차렸다.`); }})),
+      {label:'하지 않는다', sub:'', go:()=>{ P.flags.noBiz = true; }}
+    ]});
+  }
+}
+function bizYear(a){
+  const B = P.biz; if (!B || P.prison || P.camp || P.exile) return;
+  const y = P.year, k = P.policy, before = B.size;
+  let g = econ(y, IND[B.ind]>0 && (B.armed || (y>=1914 && y<=1918))) + normal(0,.1) + (P.smart+P.wit-100)/600, margin = .1;
+  if (k==='invest'){ g += .08; margin *= .5; }
+  if (k==='expand'){ g += .15; B.debt += B.size*120; }
+  if (k==='workers'){ g -= .02; margin *= .7; P.rep = clamp(P.rep+1, 0, 100); }
+  if (k==='donate'){ margin *= .6; P.org = clamp(P.org+2, 0, 100); P.donated = P.party; }
+  if (k==='work') margin *= 1.2;
+  B.size = Math.max(0, B.size*(1+g));
+  const profit = B.size*1200*margin*(y>=1948 && P.zone==='west' ? 3 : 1);
+  P.money += profit;
+  if (B.debt>0) P.money -= B.debt*.06;
+  if (B.size<1 || (g<-.05 && B.debt > B.size*400 && rand()<.4)){
+    say(`${B.name}이 파산했다.`, {money:-B.debt, rep:-5}, 'big'); P.biz = null; if (P.track==='biz') P.track = P.party!=null ? 'pol' : null; P.job = '사무원'; return;
+  }
+  say(`${B.name}: 직원 ${Math.round(B.size).toLocaleString('ko-KR')}명, 이익 ${money(profit)}.`);
+  for (const t of [100, 1000, 10000]) if (before<t && B.size>=t){ say(`${B.name}의 직원이 ${t.toLocaleString('ko-KR')}명을 넘었다.`, {fame:3}, 'big'); P.titles.push(`${y} ${bizTitle(B)}`); if (t>=1000) news(`${B.name}, 직원 ${t.toLocaleString('ko-KR')}명 돌파`); }
+}
+function bizTurning(y, m){
+  const B = P.biz;
+  if (!B || !P.alive) return;
+  if (y===1914 && m===7 && IND[B.ind]) ask({title:'군수 계약', desc:'군에서 대량 주문이 들어왔다.', options:[
+    {label:'받는다', sub:'전쟁 내내 큰다', go:()=>{ B.armed = true; say('군수 계약을 맺었다.', {money:2000}); }},
+    {label:'사양한다', sub:'', go:()=>{}}
+  ]});
+  if (y===1918 && m===11) B.armed = false;
+  if (y===1923 && m===10 && B.debt>0){ say('인플레이션으로 회사의 빚이 휴지가 됐다.', null, 'big'); B.debt = 0; }
+  if (y===1931 && m===6) ask({title:'대공황', desc:'주문이 반으로 줄었다. 은행이 대출을 거둬들인다.', options:[
+    {label:'노동자 절반을 해고한다', sub:'회사는 산다', go:()=>{ B.size *= .55; say('해고 통지서에 서명했다.', {rep:-5}); }},
+    {label:'버틴다', sub:'망할 수도 있다', go:()=>{ if (P.money < B.size*300 && rand()<.35){ say(`${B.name}이 무너졌다.`, {rep:2}, 'big'); P.biz = null; if (P.track==='biz') P.track = P.party!=null ? 'pol' : null; P.job = '사무원'; } else say('이를 악물고 버텼다.', {rep:4}); }}
+  ]});
+  if (y===1932 && m===10 && B.size>=100) ask({title:'정치 자금', desc:'정당들이 기업인들에게 손을 벌린다.', options:[
+    {label:'나치당에 댄다', sub:'', go:()=>{ P.donated = NS; deed('1932년 나치당에 정치 자금 제공', 1.5); say('나치당에 돈을 댔다.', {org:3}); }},
+    {label:'국가인민당에 댄다', sub:'', go:()=>{ P.donated = DNVP; say('국가인민당에 돈을 댔다.', {org:2}); }},
+    {label:'중도 정당에 댄다', sub:'중앙당·인민당', go:()=>{ P.donated = DVP; say('중도 정당에 돈을 댔다.', {org:2}); }},
+    {label:'아무 데도 대지 않는다', sub:'', go:()=>{}}
+  ]});
+  if (y===1936 && m===8 && IND[B.ind] && B.size>=50) ask({title:'4개년 계획', desc:'재무장을 위한 군수 생산으로 돌리라는 요구가 왔다.', options:[
+    {label:'군수로 돌린다', sub:'크게 큰다', go:()=>{ B.armed = true; deed('재무장 군수 생산 전환', .5); say('군수 공장으로 바꿨다.'); }},
+    {label:'민수에 남는다', sub:'', go:()=>{}}
+  ]});
+  if (y===1942 && m===3 && B.armed && B.size>=1000) ask({title:'수용소 노동력', desc:'친위대가 수용소 수감자를 일꾼으로 빌려주겠다고 한다. 공장 옆에 막사를 지으면 된다.', options:[
+    {label:'받아들인다', sub:'', go:()=>{ deed('수용소 수감자 강제노동', 6); B.size *= 1.2; say('공장 옆에 막사가 섰다. 그곳에서 사람들이 죽어 나갔다.', {rep:-8}, 'big'); }},
+    {label:'거절한다', sub:'', go:()=>say('거절했다.', {rep:3})}
+  ]});
+  if (y>=1943 && y<=1945 && m===3 && !isVillage(P.place) && rand()<.3){ B.size *= .7; say('공습으로 공장이 크게 부서졌다.', null, 'big'); }
+  if (y===1945 && m===6 && B.armed && P.zone==='west'){ B.size *= .6; say('연합군이 군수 설비를 뜯어 갔다.', null, 'big'); B.armed = false; }
+  if (y===1946 && m===5 && P.zone==='east') ask({title:'국유화', desc:'소련 점령지구에서 기업이 몰수되고 있다.', options:[
+    {label:'서쪽으로 넘어간다', sub:'회사는 두고 간다', go:()=>{ say('모든 것을 두고 서쪽으로 넘어갔다.', {money:-P.money*.7}, 'big'); P.biz = null; P.zone = 'west'; P.region = rnd(['바이에른','헤센','하노버']); P.place = pickPlace(P.region); if (P.track==='biz') P.track = null; }},
+    {label:'남는다', sub:'회사를 빼앗긴다', go:()=>{ say(`${B.name}이 인민소유기업이 됐다.`, null, 'big'); P.biz = null; if (P.track==='biz') P.track = null; P.job = '사무원'; }}
+  ]});
+  if (y===1948 && m===5 && P.zone==='west') B.debt *= .1;
+}
+
+// ── 순위 ─────────────────────────────────────────
+// 갈래마다(정치·군·재계) 그해 자리에 있는 실존 인물과 나를 함께 줄 세운다
+const TRACKS = {pol:'정치', mil:'군', biz:'재계'};
+function inTrack(tr){
+  if (!P.alive || P.exile) return false;
+  if (tr==='pol') return P.party!=null && !P.retired;
+  if (tr==='mil') return !!(P.mil && (P.mil.active || P.mil.pow));
+  return !!P.biz;
+}
+function trackPower(tr){
+  if (tr==='mil') return MILW[P.mil.r] + Math.round(P.mil.merit*3);
+  if (tr==='biz') return bizW(P.biz.size);
+  const keep = [P.mil, P.biz]; P.mil = null; P.biz = null;
+  const v = power(P); P.mil = keep[0]; P.biz = keep[1]; return v;
+}
+const mainTrack = () => P.track || 'pol';
+function rank(tr){
+  tr = tr || mainTrack();
+  const e = era(P.year, P.month);
+  const list = [];
+  for (const x of REAL){
+    if (!realAlive(x)) continue;
+    const en = realEntry(x, tr); if (!en) continue;
+    if (tr==='pol' && e==='east' && en.party!==SED) continue;
+    if (tr==='pol' && e==='west' && en.party===SED) continue;
+    list.push({x, p:en.w, t:en.t, party:en.party});
+  }
+  if (inTrack(tr)) list.push({x:P, p:trackPower(tr), t:title(P), party:P.party});
+  list.sort((a,b)=>b.p-a.p);
+  const me = list.findIndex(o=>o.x===P);
+  return {list, me: me<0 ? null : me+1, total:list.length};
+}
+// 1933년 이후: 바이마르의 이름난 정치인들이 어떻게 됐나
+function fates(){
+  return REAL.filter(x => x.path.some(p => p.tr==='pol' && p.from<1933 && p.from>=1918 && p.w>=150) && x.b <= P.year)
+    .sort((a,b)=>b.top-a.top).slice(0,16)
+    .map(x => {
+      const evs = x.ev.filter(([ey]) => ey>=1933 && ey<=P.year);
+      const was = x.path.filter(p => p.from<1933 && p.tr==='pol').pop();
+      return {id:x.id, name:x.name, was: was ? pname(was.party) : '—', now: !realAlive(x) ? realTitle(x) : evs.length ? evs.at(-1)[1] : realTitle(x)};
+    });
+}
+
+const E = {POP, TRAITS, TRAIT_SUM, TRACKS, newLife, step, choose, ack, title, power, rank, fates, money, pct, pname, era, ERA_NAME, PARTY, NS, gompQ,
+  policies, setPolicy, mainTrack, MILR, bizTitle,
   get P(){ return P; }, get W(){ return W; }, setRand: f => { rand = f; }};
 if (typeof module !== 'undefined') module.exports = E;

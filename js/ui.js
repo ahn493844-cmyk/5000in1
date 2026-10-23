@@ -73,7 +73,7 @@ function stageLabel(){
   if (p.prison) return '수감 중';
   if (p.exile) return '망명 중';
   const t = E.title(p);
-  if (t && (p.party!=null || p.office)) return t;
+  if (t && (p.party!=null || p.office || (p.mil && (p.mil.active || p.mil.pow)) || p.biz)) return t;
   if (p.age<6) return p.age<2 ? '아기' : '어린아이';
   if (p.age<15) return p.edu==='김나지움' ? '김나지움 학생' : '국민학교 학생';
   if (!p.job && p.flags.uni) return p.edu==='사관학교' ? '사관생도' : '대학생';
@@ -93,20 +93,37 @@ function renderStatus(){
   if (p.edu && p.age>=15) chips.push(`<span class="chip">${esc(p.edu)}${p.major?` · ${esc(p.major)}`:''}</span>`);
   if (p.retired) chips.push('<span class="chip">정계 은퇴</span>');
   $('sChips').innerHTML = chips.join('');
+  renderPolicy();
   $('sStats').innerHTML = STATS.map(([l,k]) => {
     const v = Math.round(p[k]);
     return `<div class="stat${v<30 && k!=='fame' && k!=='org' ?' low':''}"><span>${l}</span><span class="bar"><i style="width:${v}%"></i></span><b>${v}</b></div>`;
   }).join('');
   const kv = (k, v, cls='') => `<div class="kv"><dt>${k}</dt><dd class="${cls}">${v}</dd></div>`;
-  const era = E.era(p.year, p.month), ranked = ['weimar','west','east'].includes(era);
-  const r = ranked && p.party!=null ? E.rank() : null;
+  const era = E.era(p.year, p.month), tr = E.mainTrack();
+  const ranked = tr!=='pol' || ['weimar','west','east'].includes(era);
+  const r = ranked ? E.rank(tr) : null;
+  const m = p.mil, b = p.biz;
   $('sLedger').innerHTML =
     kv('시대', E.ERA_NAME[era], 'txt') +
     kv('재산', E.money(p.money), p.money<0?'neg':'') +
-    (r ? kv('정치인 순위', r.me ? `${r.me}위 / ${r.total}명` : '—') : '') +
+    (m ? kv('계급', `${E.MILR[m.r]}${m.active ? '' : ' (전역)'}${m.pow ? ' · 포로' : ''}`, 'txt') + kv('공훈', Math.round(m.merit)) + (m.medals.length ? kv('훈장', esc(m.medals.join(', ')), 'txt') : '') : '') +
+    (b ? kv('회사', `${esc(b.name)} · ${esc(b.ind)}`, 'txt') + kv('직원', `${Math.round(b.size).toLocaleString('ko-KR')}명`) + (b.debt>0 ? kv('빚', E.money(b.debt), 'neg') : '') : '') +
+    (r && r.me ? kv(`${E.TRACKS[tr]} 순위`, `${r.me}위 / ${r.total}명`) : '') +
     (p.peakRank ? kv('최고 순위', `${p.peakRank}위`) : '') +
     (p.wins||p.losses ? kv('선거', `당선 ${p.wins} · 낙선 ${p.losses}`, 'txt') : '') +
     (p.deeds.length ? kv('남은 기록', `${p.deeds.length}건`, 'neg') : '');
+}
+// 올해의 활동 방침
+let polSig = '';
+function renderPolicy(){
+  const p = P(), L = p.alive && p.age>=16 ? E.policies() : [];
+  const sig = L.map(o=>o.k).join() + '|' + p.policy;
+  if (sig===polSig) return; polSig = sig;
+  const el = $('policy');
+  if (!L.length){ el.innerHTML = ''; return; }
+  const cur = L.find(o=>o.k===p.policy) || L[0];
+  el.innerHTML = `<p class="eyebrow">올해 방침</p><div class="pols" role="group" aria-label="올해 방침">${L.map(o => `<button type="button" data-k="${o.k}" aria-pressed="${o.k===cur.k}">${esc(o.label)}</button>`).join('')}</div><p class="pol-sub">${esc(cur.sub)}</p>`;
+  el.querySelectorAll('button').forEach(btn => btn.addEventListener('click', () => { E.setPolicy(btn.dataset.k); polSig = ''; renderPolicy(); }));
 }
 function renderLog(){
   const box = $('log'), p = P();
@@ -217,30 +234,30 @@ function drawHouse(){
   $('houseKey').innerHTML = SEAT_ORDER.filter(i => h.seats[i]).map(i => `<span><i class="dot p${i}"></i>${esc(E.pname(i))} <b>${h.seats[i]}</b></span>`).join('') +
     (Object.values(h.seats).some(n => n>=maj) ? '' : `<span class="muted">과반(${maj}석) 정당 없음</span>`);
 }
-let prevRank = new Map();
+let prevRank = new Map(), rankTab = null;
 function renderBoard(){
   const w = W(), p = P();
   drawHouse();
   const era = E.era(p.year, p.month);
   $('eraBox').innerHTML = `<span class="lbl">지금</span><b>${E.ERA_NAME[era]}</b><span class="muted">${p.year}년 ${p.month+1}월</span>`;
-  if (['nazi','occ'].includes(era)){
+  const tabs = Object.entries(E.TRACKS);
+  if (!rankTab) rankTab = E.mainTrack();
+  $('rankTabs').innerHTML = tabs.map(([k,l]) => `<button type="button" data-t="${k}" aria-pressed="${k===rankTab}">${l}</button>`).join('');
+  $('rankTabs').querySelectorAll('button').forEach(b => b.onclick = () => { rankTab = b.dataset.t; prevRank = new Map(); renderBoard(); });
+  if (rankTab==='pol' && ['nazi','occ'].includes(era)){
     $('rankTitle').textContent = '옛 경쟁자들의 행방';
     $('rank').innerHTML = E.fates().map((f,i) => `<li><span class="rk">${i+1}</span><span class="who"><b>${esc(f.name)}</b><small>${esc(f.was)} → ${esc(f.now)}</small></span><span class="pw"></span></li>`).join('') || '<li class="muted">—</li>';
     $('rankNote').textContent = '1933년 이후 자유로운 정치 경쟁은 사라졌습니다. 순위 대신 바이마르 시절 이름난 정치인들이 어떻게 됐는지 보여 줍니다.';
-  } else if (era==='empire'){
-    $('rankTitle').textContent = '실시간 정치인 순위';
-    $('rank').innerHTML = '<li class="muted">아직 황제의 나라입니다. 1918년 11월 공화국이 서면 정치판이 열립니다.</li>';
-    $('rankNote').textContent = '';
   } else {
-    $('rankTitle').textContent = era==='east' ? '동독 사통당 서열' : era==='west' ? '서독 정치인 순위' : '실시간 정치인 순위';
-    const r = E.rank(), top = r.list.slice(0, 10), showMe = r.me && r.me>10;
+    $('rankTitle').textContent = rankTab==='mil' ? '군 서열' : rankTab==='biz' ? '재계 순위' : era==='east' ? '동독 정치 서열' : era==='west' ? '서독 정치인 순위' : '정치인 순위';
+    const r = E.rank(rankTab), top = r.list.slice(0, 10), showMe = r.me && r.me>10;
     const row = (e, i) => {
       const me = e.x===p, id = e.x.id||0, before = prevRank.get(id);
       const mv = before==null ? '' : before>i+1 ? '<span class="up">▲</span>' : before<i+1 ? '<span class="dn">▼</span>' : '';
-      return `<li class="${me?'me':''}"><span class="rk">${i+1}</span><span class="who"><i class="dot p${e.x.party}"></i><b>${esc(me ? `${e.x.name} (나)` : e.x.name)}</b>${mv}<small>${esc(E.title(e.x)||'—')}</small></span><span class="pw">${e.p.toLocaleString('ko-KR')}</span></li>`;
+      return `<li class="${me?'me':''}"><span class="rk">${i+1}</span><span class="who">${e.party!=null ? `<i class="dot p${e.party}"></i>` : ''}<b>${esc(me ? `${e.x.name} (나)` : e.x.name)}</b>${mv}<small>${esc(e.t||'—')}</small></span><span class="pw">${e.p.toLocaleString('ko-KR')}</span></li>`;
     };
-    $('rank').innerHTML = top.map(row).join('') + (showMe ? `<li class="gap" aria-hidden="true">⋯</li>${row(r.list[r.me-1], r.me-1)}` : '');
-    $('rankNote').textContent = `이름 있는 정치인 ${r.total}명 중 · 숫자는 권력 점수`;
+    $('rank').innerHTML = top.map(row).join('') + (showMe ? `<li class="gap" aria-hidden="true">⋯</li>${row(r.list[r.me-1], r.me-1)}` : '') || '<li class="muted">지금 이 자리에 있는 이름난 사람이 없습니다.</li>';
+    $('rankNote').textContent = `그해 자리에 있던 실존 인물 ${r.list.filter(e=>e.x!==p).length}명${r.me ? '과 나' : ''} · 숫자는 권력 점수`;
     prevRank = new Map(r.list.map((e,i)=>[e.x.id||0, i+1]));
   }
   $('news').innerHTML = w.news.slice(0,12).map(n => `<li${n.big?' class="big"':''}><span>${n.y}.${String(n.m+1).padStart(2,'0')}</span>${esc(n.t)}</li>`).join('') || '<li class="muted">아직 소식이 없습니다.</li>';
@@ -272,6 +289,13 @@ function lifeLine(){
   if (p.cause==='전범재판 사형 집행') return '권력의 가장 어두운 곳에 섰다가 법정에서 생을 마쳤다.';
   if (/인민재판소|게슈타포/.test(p.cause)) return '체제에 맞서다 목숨을 잃은 삶이었다.';
   if (p.flags.helper) return '모두가 커튼을 칠 때 문을 열어 준 사람이었다.';
+  if (p.mil && p.mil.r>=10 && p.deeds.length) return '장군의 별을 달았고, 그 별 아래서 내린 명령이 기록으로 남았다.';
+  if (p.mil && p.mil.r>=10) return '장군의 별을 단 군인의 삶이었다.';
+  if (p.biz && p.biz.size>=1000 && p.deeds.length) return '회사를 키웠고, 그 대가를 다른 이들이 치렀다.';
+  if (p.biz && p.biz.size>=1000) return '격동의 세기에 회사를 일으킨 삶이었다.';
+  if (p.cause==='전사') return '전선에서 끝난 삶이었다.';
+  if (p.mil && p.mil.medals.length) return `${p.mil.medals.at(-1)}을 가슴에 단 군인의 삶이었다.`;
+  if (p.biz) return '자기 이름을 건 회사를 꾸린 삶이었다.';
   if (p.wasNS!=null && p.wasNS>=3) return '체제의 톱니바퀴로 출세했고, 그 대가를 법정에서 따져 물었다.';
   if (p.wasNS!=null) return '줄을 선 수백만 명 가운데 한 사람이었다.';
   if (p.flags.victim) return '수용소를 겪고도 살아남은 삶이었다.';
@@ -287,7 +311,7 @@ function summaryHTML(){
   const kv = (k, v) => `<div class="kv"><dt>${k}</dt><dd class="txt">${v}</dd></div>`;
   return `<div class="summary"><p class="eyebrow">인생 성적표</p><h3>${esc(p.name)} · ${p.by}–${p.year}</h3>
     <p class="line">${lifeLine()}</p>
-    <dl>${kv('마지막', `${esc(p.cause)}, 향년 ${p.age}세`)}${kv('종교', esc(p.faith))}${kv('학력', esc(p.edu||'—'))}${kv('거쳐 간 일', esc(p.careers.join(' → ')||'없음'))}${
+    <dl>${kv('마지막', `${esc(p.cause)}, 향년 ${p.age}세`)}${kv('종교', esc(p.faith))}${kv('학력', esc(p.edu||'—'))}${kv('거쳐 간 일', esc(p.careers.join(' → ')||'없음'))}${p.mil ? kv('최종 계급', esc(E.MILR[p.mil.r])) : ''}${p.biz ? kv('회사', `${esc(p.biz.name)} · 직원 ${Math.round(p.biz.size).toLocaleString('ko-KR')}명`) : ''}${
       kv('정당', esc([p.prevParty, p.party].filter((x,i,a)=>x!=null && a.indexOf(x)===i).map(E.pname).join(' → ') || '없음'))}${kv('선거', `당선 ${p.wins}번 · 낙선 ${p.losses}번`)}${
       p.deeds.length ? kv('남은 기록', esc(p.deeds.join(', '))) : ''}${p.flags.tried ? kv('전후 심판', esc(p.flags.tried)) : ''}${
       p.titles.length ? kv('지낸 자리', esc(p.titles.join(' → '))) : ''}${p.peakRank ? kv('가장 높이 오른 순위', `${p.peakRank}위`) : ''}${
