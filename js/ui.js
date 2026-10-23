@@ -30,7 +30,7 @@ function fmtP(p){
   if (p>=0.01) return (p*100).toFixed(1)+'%';
   return '1/'+korNum(1/p);
 }
-const POP = 51217221;
+const POP = E.POP;
 function setCount(n){
   $('count').innerHTML = `${fmtCount(n)}<small>명</small>`;
   $('meter').style.width = Math.max(0, Math.min(100, (Math.log10(Math.max(n,1e-2))+2)/(Math.log10(POP)+2)*100)) + '%';
@@ -81,7 +81,7 @@ function stageLabel(){
   if (p.flags.jobless && !p.job) return '실업자';
   return p.age>=65 ? '은퇴' : '—';
 }
-const STATS = [['건강','hp'],['능력','smart'],['말솜씨','talk'],['친화력','charm'],['인지도','fame'],['평판','rep'],['조직력','org']];
+const STATS = [['건강','hp'],['머리','smart'],['말솜씨','talk'],['친화력','charm'],['담력','nerve'],['처세','wit'],['인지도','fame'],['평판','rep'],['조직력','org']];
 function renderStatus(){
   const p = P(), w = W();
   $('sAge').innerHTML = `${p.age}<small>세</small>`;
@@ -323,9 +323,10 @@ function renderHist(){
 }
 
 // ── 타고난 기질 고르기 ───────────────────────────
-let alloc = {hp:5, smart:5, talk:5, charm:5};
+let alloc = Object.fromEntries(E.TRAITS.map(([k]) => [k, 5]));
 try { const a = JSON.parse(localStorage.getItem('5000in1-alloc')); if (a && E.TRAITS.every(([k]) => a[k]>=0 && a[k]<=10) && E.TRAITS.reduce((s,[k])=>s+a[k],0)===E.TRAIT_SUM) alloc = a; } catch {}
-const HINT = {hp:'오래 버티고 선거 강행군을 견딘다', smart:'수능·고시·법안에 유리하다', talk:'선거·토론·방송에서 빛난다', charm:'사람을 모아 조직을 키운다'};
+const HINT = {hp:'참호와 굶주림, 수용소를 버틴다', smart:'김나지움과 대학에 간다. 법률과 행정에 밝다', talk:'맥줏집 집회와 의회 연설로 이름을 알린다',
+  charm:'동지를 모으고 당 조직을 키운다', nerve:'거리 싸움과 체포, 심문을 견딘다', wit:'시류를 읽고 줄을 선다. 위기를 빠져나간다'};
 function renderAlloc(){
   const left = E.TRAIT_SUM - E.TRAITS.reduce((s,[k])=>s+alloc[k],0);
   $('alloc').innerHTML = `<p class="al-head"><span>타고난 기질</span><span>남은 점수 <b>${left}</b></span></p>` + E.TRAITS.map(([k,l]) => `

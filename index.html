@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@400;800&family=IBM+Plex+Sans+KR:wght@400;500;700&family=Courier+Prime:wght@400;700&family=UnifrakturMaguntia&display=swap">
 <style>
-/* 위 = 줄어드는 인원수와 출생증명서, 가운데 = 지금 상태(왼쪽)와 흐르는 인생 기록·선택·개표(오른쪽), 아래 = 정치판(국회·순위·소식). */
+/* 위 = 줄어드는 인원수와 출생증명서, 가운데 = 지금 상태(왼쪽)와 흐르는 인생 기록·선택·개표(오른쪽), 아래 = 정치판(의회·순위·소식). */
 :root{
   --paper:#E8DFCA; --sheet:#F4ECD8; --ink:#211B14; --muted:#6B5D49; --rule:#C9BA98;
   --accent:#4A5A3C; --seal:#8E1F1A; --guil:rgba(110,85,45,.09); --glow:rgba(255,250,235,.4);
@@ -244,7 +244,7 @@ footer p{margin:0 0 6px}
       <p class="lede">1890년 독일 제국의 인구는 약 5천만 명. 그 가운데 한 아기로 태어나 황제의 나라, 바이마르 공화국, 나치 독일, 전쟁과 그 뒤를 삽니다. 나라 전체의 역사는 바꿀 수 없습니다. 당신이 고를 수 있는 것은 그 안에서 어디에 서느냐입니다.</p>
       <div class="counter">
         <span class="c-label">나와 같은 조건으로 태어난 사람</span>
-        <output class="c-num" id="count" aria-live="polite">51,217,221<small>명</small></output>
+        <output class="c-num" id="count" aria-live="polite">49,428,470<small>명</small></output>
         <div class="meter" aria-hidden="true"><i id="meter" style="width:100%"></i></div>
         <div class="scale" aria-hidden="true"><span>0.01명</span><span>1명</span><span>5천만 명</span></div>
       </div>
@@ -289,7 +289,7 @@ footer p{margin:0 0 6px}
   <section class="board after" aria-labelledby="boardTitle" hidden>
     <div class="panel">
       <h2 id="boardTitle"><span id="houseTitle">의회</span></h2>
-      <canvas id="house" aria-label="국회 의석 분포"></canvas>
+      <canvas id="house" aria-label="의회 의석 분포"></canvas>
       <div class="housekey" id="houseKey"></div>
       <div class="pres" id="eraBox"></div>
     </div>

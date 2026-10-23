@@ -195,7 +195,7 @@ function deathCause(d){
 
 // ── 상태 ─────────────────────────────────────────
 let P = null, W = null, nextId = 1;
-const LBL = {hp:'건강', smart:'능력', talk:'말솜씨', charm:'친화력', fame:'인지도', rep:'평판', org:'조직력'};
+const LBL = {hp:'건강', smart:'머리', talk:'말솜씨', charm:'친화력', nerve:'담력', wit:'처세', fame:'인지도', rep:'평판', org:'조직력'};
 
 function fx(eff){
   const parts = [];
@@ -327,14 +327,17 @@ function wealthOf(fa, mo){
 }
 function Phi(z){ const t = 1/(1+.2316419*Math.abs(z)), d = .3989423*Math.exp(-z*z/2), q = d*t*(.3193815+t*(-.3565638+t*(1.781478+t*(-1.821256+t*1.330274)))); return z>0 ? 1-q : q; }
 const WEALTH = ['가난한 집','넉넉지 않은 집','살 만한 집','여유 있는 집','부유한 집'];
-const TRAITS = [['hp','체력'],['smart','머리'],['talk','말솜씨'],['charm','친화력']];
-const TRAIT_SUM = 20;
+// 타고난 기질: 30점을 여섯 가지에 나눠 준다(0~10, 고르게 나누면 5씩)
+// 체력=전선·굶주림·수용소를 버팀, 머리=학교·전문직, 말솜씨=연설·명부 순번, 친화력=조직,
+// 담력=체포·심문·거리 싸움을 견딤, 처세=시류를 읽고 줄을 섬·위기를 빠져나감
+const TRAITS = [['hp','체력'],['smart','머리'],['talk','말솜씨'],['charm','친화력'],['nerve','담력'],['wit','처세']];
+const TRAIT_SUM = 30;
 const births = y => 1750000 + (y-1879)*11000;
 const BORN_FROM = 1879, BORN_TO = 1899;     // 히틀러(1889년생) 앞뒤 10년
 
 // ── 태어나기 ─────────────────────────────────────
 function newLife(alloc){
-  alloc = alloc || {hp:5, smart:5, talk:5, charm:5};
+  alloc = alloc || Object.fromEntries(TRAITS.map(([k]) => [k, 5]));
   const rows = []; let prob = 1;
   const row = (label, value, p, note) => { rows.push({label, value, p, note}); prob *= p; };
   const yrs = []; for (let y=BORN_FROM; y<=BORN_TO; y++) yrs.push([y, births(y)]);
@@ -369,7 +372,7 @@ function newLife(alloc){
   row('집안 형편', WEALTH[wl.v], wl.p, `부모 벌이 한 해 약 ${money(inc)}`);
 
   const pt = k => clamp(Math.round(alloc[k]||0), 0, 10);
-  P.alloc = {hp:pt('hp'), smart:pt('smart'), talk:pt('talk'), charm:pt('charm')};
+  P.alloc = Object.fromEntries(TRAITS.map(([k]) => [k, pt(k)]));
   rows.push({label:'타고난 기질', value: TRAITS.map(([k,l]) => `${l} ${P.alloc[k]}`).join(' · '), p:1, pick:true});
   P.name = mkName(P.male, P.jew);
   row('이름', P.name, .02);
@@ -377,7 +380,7 @@ function newLife(alloc){
   P.hp = clamp(Math.round(60 + P.alloc.hp*4 + normal(0,3)), 30, 100);
   P.smart = clamp(Math.round(25 + P.alloc.smart*5 + normal(0,4)), 5, 95);
   P.talk = clamp(Math.round(25 + P.alloc.talk*5 + normal(0,4)), 5, 95);
-  P.charm = clamp(Math.round(25 + P.alloc.charm*5 + normal(0,4)), 5, 95);
+  for (const k of ['charm','nerve','wit']) P[k] = clamp(Math.round(25 + P.alloc[k]*5 + normal(0,4)), 5, 95);
   P.fame = 0; P.rep = 60; P.org = clamp(Math.round(P.charm*.2 + P.wealth*2 + normal(0,3)), 0, 40);
   for (const j of [P.fa, P.mo]) if (j && JOBS[j.v].d) for (const k in JOBS[j.v].d) P[k] = clamp(P[k] + JOBS[j.v].d[k], 0, 100);
   P.cur = {year:by, age:0, lines:[]}; P.log.push(P.cur);
@@ -569,6 +572,7 @@ function warYear(){
   if (r < q){ die('전사'); return; }
   if (r < q+.09){ say(rnd(['솜 전투에서 다쳤다.','베르됭에서 파편을 맞았다.','동부전선에서 다쳤다.']), {hp:-15}); if (rand()<.3){ P.flags.home = true; say('부상으로 전역했다.'); } return; }
   say(rnd(['참호에서 한 해를 버텼다.','동부전선에서 싸웠다.','서부전선 참호에서 겨울을 났다.','전우를 여럿 잃었다.']), {hp:-3, org:1});
+  if (!P.flags.cross && rand() < P.nerve/350){ P.flags.cross = true; say('철십자 훈장을 받았다.', {fame:3, rep:2}); }
 }
 
 // ── 바이마르 ─────────────────────────────────────
@@ -594,11 +598,11 @@ function weimarYear(a){
   if (P.office || P.landmin) say(`${title(P)}로 일했다.`);
   const ev = [];
   if (P.party===SPD) ev.push(['노동조합 집회에서 연설했다.', {talk:1, org:3}], ['국기단과 함께 공화국을 지키는 행진을 했다.', {org:3}]);
-  if (P.party===KPD) ev.push(['적색전선투사동맹과 거리에서 나치 돌격대와 부딪쳤다.', {hp:-4, org:3}], ['모스크바의 노선을 두고 당내 다툼이 벌어졌다.', {org:-2}]);
+  if (P.party===KPD) ev.push(['적색전선투사동맹과 거리에서 나치 돌격대와 부딪쳤다.', {hp:P.nerve>60 ? -2 : -5, org:3}], ['모스크바의 노선을 두고 당내 다툼이 벌어졌다.', {org:-2}]);
   if (P.party===Z) ev.push(['가톨릭 노동자 협회를 이끌었다.', {org:4}], ['주교와 저녁을 먹었다.', {org:2, fame:1}]);
   if (P.party===DDP || P.party===DVP) ev.push(['신문에 공화국을 지키자는 글을 썼다.', {fame:3}], ['당원이 줄고 있다는 보고를 받았다.', {org:-2}]);
   if (P.party===DNVP) ev.push(['철모단 행사에서 베르사유 조약을 성토했다.', {org:3, fame:2}], ['대지주들의 후원을 받았다.', {money:500}]);
-  if (P.party===NS) ev.push(['돌격대(SA)와 거리 행진을 했다.', {org:3}], ['맥줏집 집회에서 연설했다.', {talk:2, fame:2}], ['공산당원과 패싸움을 벌였다.', {hp:-5, org:2}]);
+  if (P.party===NS) ev.push(['돌격대(SA)와 거리 행진을 했다.', {org:3}], ['맥줏집 집회에서 연설했다.', {talk:2, fame:2}], ['공산당원과 패싸움을 벌였다.', {hp:P.nerve>60 ? -2 : -6, org:2}]);
   ev.push(['집회 연설이 신문에 실렸다.', {fame:3}], ['동네 사람들 민원을 들어줬다.', {org:3}], ['당 지도부와 부딪혔다.', {org:-2, fame:2}]);
   const e = rnd(ev), eff = {...e[1]}; if (eff.fame) eff.fame = Math.round(eff.fame*.5);
   say(e[0], eff);
@@ -631,7 +635,7 @@ const LEVEL = {
   bdr:{n:'연방의회', mu:45}
 };
 function myStrength(k){
-  return P.fame*.45 + P.org*.35 + P.talk*.2 + (P.office===k ? 10 : 0) + (P.flags.front && [DNVP,NS].includes(P.party) ? 4 : 0) - (P.male ? 0 : 6) - (P.rep<30 ? 8 : 0);
+  return P.fame*.45 + P.org*.35 + P.talk*.2 + (P.wit-50)*.12 + (P.office===k ? 10 : 0) + (P.flags.front && [DNVP,NS].includes(P.party) ? 4 : 0) - (P.male ? 0 : 6) - (P.rep<30 ? 8 : 0);
 }
 // 한 판: 지역 득표 → 당 의석 → 내 명부 순번
 function race(k, sh, total){
@@ -729,7 +733,7 @@ function seizure(){
   // 나에게 오는 1933년
   if (P.party===NS || P.jew || P.party==null) return;
   if (P.party===KPD){
-    if (rand()<.5){ P.camp = ri(1,2); say('의사당 화재 뒤 공산당원 일제 검거에 걸려 수용소로 끌려갔다.', {hp:-15}, 'big'); P.flags.victim = true; }
+    if (rand()<risk(.5)){ P.camp = ri(1,2); say('의사당 화재 뒤 공산당원 일제 검거에 걸려 수용소로 끌려갔다.', {hp:-15}, 'big'); P.flags.victim = true; }
     exileAsk('공산당원 사냥이 시작됐다.');
   } else if (P.party===SPD){
     if ((P.office || P.landmin) && rand()<.3){ P.camp = 1; say('사민당 의원이라는 이유로 체포돼 수용소에 끌려갔다.', {hp:-10}, 'big'); P.flags.victim = true; }
@@ -763,16 +767,16 @@ function nsElection(){
 }
 function naziYear(a){
   const y = P.year;
-  if (P.camp){ P.camp--; if (rand()<.06){ die('수용소에서의 학대'); return; } say(P.camp ? '수용소에서 한 해를 보냈다.' : '수용소에서 풀려났다. 감시가 따라붙었다.', {hp:-6}); return; }
+  if (P.camp){ P.camp--; if (rand()<frail(.06)){ die('수용소에서의 학대'); return; } say(P.camp ? '수용소에서 한 해를 보냈다.' : '수용소에서 풀려났다. 감시가 따라붙었다.', {hp:-6}); return; }
   if (P.exile){ say(rnd(['망명지에서 독일의 실상을 알리는 글을 썼다.','망명지에서 일자리를 구하느라 애썼다.','망명객 모임에 나갔다.']), {hp:-1}); return; }
   if (P.jew) return jewYear();
   if (P.flags.resist){
     say(rnd(['밤에 전단을 돌렸다.','쫓기는 동지를 숨겨 줬다.','망명지와 몰래 연락했다.']), {rep:2});
-    if (rand()<.18){ caught(); return; }
+    if (rand()<risk(.18)){ caught(); return; }
   }
   if (P.party===NS){
     P.guilt += NS_GUILT[P.nsRank];
-    if (P.nsRank<5 && rand() < sig((P.fame+P.org-80)/15)*.3){
+    if (P.nsRank<5 && rand() < sig((P.fame+P.org-80)/15 + (P.wit-50)/20)*.3){
       P.nsRank++; const t = nsr(P, P.nsRank);
       say(`나치당 ${t}로 올라갔다.`, {fame:3, org:3}, 'big'); deed(`${y}년 나치당 ${t}`, P.nsRank); P.titles.push(`${y} 나치당 ${t}`);
     } else say(`나치당 ${nsr(P, P.nsRank)}로 일했다.`);
@@ -792,7 +796,7 @@ function naziYear(a){
     ]});
     else ask({title:'1938년 11월 9일 밤', desc:'유대인 이웃의 상점 유리창이 깨지고 있다.', options:[
       {label:'커튼을 친다', sub:'', go:()=>say('창밖을 보지 않았다.')},
-      {label:'이웃을 들여 숨겨 준다', sub:'위험하다', go:()=>{ P.flags.helper = (P.flags.helper||0)+1; say('이웃 가족을 하룻밤 숨겨 줬다.', {rep:6}); if (rand()<.1) caught(); }}
+      {label:'이웃을 들여 숨겨 준다', sub:'위험하다', go:()=>{ P.flags.helper = (P.flags.helper||0)+1; say('이웃 가족을 하룻밤 숨겨 줬다.', {rep:6}); if (rand()<risk(.1)) caught(); }}
     ]});
   }
   if (y>=1938 && y<=1940 && !P.flags.aryan && (P.money>2000 || ['상인','공장주','대지주'].includes(P.job) || (P.party===NS && P.nsRank>=2)) && rand()<.4){ P.flags.aryan = true;
@@ -810,12 +814,12 @@ function naziYear(a){
   if (y>=1941 && y<=1944 && ['농부','공장주','대지주'].includes(P.job) && !P.flags.forced){ P.flags.forced = true;
     ask({title:'강제노동자', desc:'폴란드와 소련에서 끌려온 사람들이 일손으로 배정됐다.', options:[
       {label:'규정대로 부린다', sub:'', go:()=>{ deed('강제노동자 혹사', 2); say('그들을 부렸다.', {money:1500}); }},
-      {label:'몰래 먹을 것을 더 준다', sub:'걸리면 처벌받는다', go:()=>{ say('몰래 빵을 더 줬다.', {rep:4}); if (rand()<.08) caught(); }}
+      {label:'몰래 먹을 것을 더 준다', sub:'걸리면 처벌받는다', go:()=>{ say('몰래 빵을 더 줬다.', {rep:4}); if (rand()<risk(.08)) caught(); }}
     ]});
   }
   if (y>=1942 && y<=1944 && P.party!==NS && !P.flags.hide && rand()<.12){ P.flags.hide = true;
     ask({title:'숨을 곳', desc:'이송 명단에 오른 유대인 지인이 숨겨 달라고 찾아왔다.', options:[
-      {label:'숨겨 준다', sub:'걸리면 수용소다', go:()=>{ P.flags.helper = (P.flags.helper||0)+2; say('다락방에 숨겨 줬다.', {rep:10}, 'big'); if (rand()<.2) caught(); }},
+      {label:'숨겨 준다', sub:'걸리면 수용소다', go:()=>{ P.flags.helper = (P.flags.helper||0)+2; say('다락방에 숨겨 줬다.', {rep:10}, 'big'); if (rand()<risk(.2)) caught(); }},
       {label:'돌려보낸다', sub:'', go:()=>say('문을 닫았다. 그 뒤로 소식을 듣지 못했다.')}
     ]});
   }
@@ -825,12 +829,15 @@ function naziYear(a){
       {label:'못 들은 걸로 한다', sub:'', go:()=>{}}
     ]});
   }
-  if (y===1944 && P.flags.plot && rand()<.6){ say('7월 20일 거사가 실패했다. 이름이 적힌 명단이 나왔다.', null, 'big'); if (rand()<.8){ die('인민재판소의 사형 판결'); return; } P.prison = 2; }
+  if (y===1944 && P.flags.plot && rand()<.6){ say('7월 20일 거사가 실패했다. 이름이 적힌 명단이 나왔다.', null, 'big'); if (rand()<frail(.8)){ die('인민재판소의 사형 판결'); return; } P.prison = 2; }
   if (y>=1940) war2(a);
 }
+// 처세가 좋으면 덜 걸리고, 담력이 크면 심문과 수용소를 더 버틴다
+const risk = p => p*(1.3 - P.wit*.006);
+const frail = p => p*(1.5 - P.nerve*.01);
 function caught(){
   say('게슈타포에 잡혔다.', {hp:-10}, 'big');
-  if (rand()<.25){ die('게슈타포의 고문과 처형'); return; }
+  if (rand()<frail(.25)){ die('게슈타포의 고문과 처형'); return; }
   P.camp = ri(1,3); P.flags.victim = true; P.flags.resist = false;
 }
 function war2(a){
@@ -851,7 +858,7 @@ function jewYear(){
   if (y<=1939){
     const left = y<=1935 ? '아직 길이 있다' : y<=1938 ? '받아 주는 나라가 줄고 있다' : '거의 마지막 기회다';
     ask({title:'떠날까', desc:`${left}. 재산 대부분을 '출국세'로 내놓아야 한다.`, valid:()=>!P.exile && P.alive, options:[
-      {label:'떠난다', sub:'팔레스타인·미국·영국으로', go:()=>{ if (rand() < (y<=1935 ? .9 : y<=1938 ? .7 : .45)){ P.exile = true; P.flags.emigrated = true; say('독일을 떠났다.', {money:-P.money*.85}, 'big'); } else say('비자를 받지 못했다.', null, 'big'); }},
+      {label:'떠난다', sub:'팔레스타인·미국·영국으로', go:()=>{ if (rand() < (y<=1935 ? .9 : y<=1938 ? .7 : .45) + (P.wit-50)/250){ P.exile = true; P.flags.emigrated = true; say('독일을 떠났다.', {money:-P.money*.85}, 'big'); } else say('비자를 받지 못했다.', null, 'big'); }},
       {label:'아직은 남는다', sub:'곧 지나가리라 믿는다', go:()=>say('남았다.')}
     ]});
     return;
@@ -896,7 +903,8 @@ function trial(){
   if (!P.alive || P.jew) return;
   const member = P.wasNS!=null;
   if (!member && P.guilt<2) return;
-  const g = P.guilt, rk = member ? P.wasNS : -1, east = P.zone==='east';
+  // 처세가 좋으면 '세탁 증명서'(페르질샤인)를 써 줄 사람을 더 많이 구한다
+  const g = P.guilt - (P.wit-50)/25, rk = member ? P.wasNS : -1, east = P.zone==='east';
   let court, verdict, years = 0, dead = false;
   if (rk>=5 || g>=25){ court = '연합국 전범재판'; verdict = wpick([['사형',40],['무기징역',30],['징역 20년',30]]).v; if (verdict==='사형') dead = true; else years = verdict==='무기징역' ? 10 : 8; }
   else if (east && rk>=2){ court = '소련 군사재판'; verdict = '특별수용소 수감'; years = ri(3,6); if (rand()<.3) dead = 'camp'; }
@@ -943,7 +951,7 @@ function postwarYear(a){
   if (P.year<1949){ say(rnd(['폐허에서 벽돌을 날랐다.','암시장에서 담배로 먹을 것을 샀다.','굶주린 겨울을 났다.']), {hp:-2}); return; }
   if (P.party==null || P.retired) return;
   if (P.party===SED){
-    if (P.sedRank<5 && rand() < sig((P.fame+P.org-80)/15)*.3){ P.sedRank++; say(`${SEDR[P.sedRank]}가 됐다.`, {fame:3}, 'big'); P.titles.push(`${P.year} ${SEDR[P.sedRank]}`); }
+    if (P.sedRank<5 && rand() < sig((P.fame+P.org-80)/15 + (P.wit-50)/20)*.3){ P.sedRank++; say(`${SEDR[P.sedRank]}가 됐다.`, {fame:3}, 'big'); P.titles.push(`${P.year} ${SEDR[P.sedRank]}`); }
     else say(rnd(['당 회의에서 노선을 따랐다.','슈타지가 동료를 조사한다는 소문을 들었다.','생산 목표를 채우라는 지시를 내려보냈다.']));
     return;
   }
@@ -1010,6 +1018,6 @@ function fates(){
     .map(b => ({id:b.id, name:b.name, was:pname(b.prevParty ?? b.party), now: !b.alive && !b.fate ? '세상을 떠났다' : b.fate || (b.party===NS ? `나치당 ${NSR.m[b.nsRank||0]}` : b.gone ? '망명했다' : title(b) || '—')}));
 }
 
-const E = {TRAITS, TRAIT_SUM, newLife, step, choose, ack, title, power, rank, fates, money, pct, pname, era, ERA_NAME, PARTY, NS, gompQ,
+const E = {POP, TRAITS, TRAIT_SUM, newLife, step, choose, ack, title, power, rank, fates, money, pct, pname, era, ERA_NAME, PARTY, NS, gompQ,
   get P(){ return P; }, get W(){ return W; }, setRand: f => { rand = f; }};
 if (typeof module !== 'undefined') module.exports = E;
